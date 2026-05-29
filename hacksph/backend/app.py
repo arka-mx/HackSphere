@@ -72,4 +72,6 @@ def create_app():
 if __name__ == '__main__':
     app = create_app()
     port = int(os.environ.get('FLASK_PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=Config.DEBUG)
+    # Disable the auto-reloader (use_reloader=False) to stop watchdog reload terminal spam.
+    # Keep debug=Config.DEBUG active so detailed error tracebacks are still rendered.
+    app.run(host='0.0.0.0', port=port, debug=Config.DEBUG, use_reloader=False)
