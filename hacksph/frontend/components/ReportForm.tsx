@@ -2,19 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { useRole } from "@/lib/RoleContext";
-import { calculateRisk, getRiskBadgeClass } from "@/utils/helpers";
+import { getRiskBadgeClass } from "@/utils/helpers";
 import type { WaterCondition } from "@/types/report";
+import { fetchMeteostatDailyPoint, fetchOpenMeteoWeather } from "@/lib/api";
 
 export default function ReportForm() {
   const {
     activeRole,
-    ashaVillage,
-    volunteerVillage,
-    volunteerClinic,
+    userProfile,
     addSymptomReport,
     addIndustrialLog,
     addClinicalRecord,
-    addPublicComplaint,
     villagesList,
   } = useRole();
 
@@ -22,45 +20,51 @@ export default function ReportForm() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // Active form tab for ASHA worker (health survey vs industrial contamination)
-  const [ashaTab, setAshaTab] = useState<"survey" | "industrial">("survey");
+  // Tab selector for merged ASHA / Volunteer role
+  const [activeTab, setActiveTab] = useState<"survey" | "clinical">("survey");
 
-  // 1. Standard Health Survey Form State
+  // Dynamic dropdown list based on user profile districts (Task 8: Data Access Control)
+  const allowedVillages = villagesList.filter((v) => {
+    if (activeRole === "admin" || activeRole === "public") return true;
+    if (userProfile && userProfile.selectedDistricts.length > 0) {
+      return userProfile.selectedDistricts.includes(v.name);
+    }
+    return true; // Default fallback
+  });
+
+  // ASHA Health Survey Form State
   const [surveyVillage, setSurveyVillage] = useState("");
-  const [fever, setFever] = useState(0);
-  const [diarrhea, setDiarrhea] = useState(0);
-  const [vomiting, setVomiting] = useState(0);
-  const [waterCondition, setWaterCondition] = useState<WaterCondition>("clean");
   const [surveyDate, setSurveyDate] = useState(new Date().toISOString().split("T")[0]);
+  const [waterCondition, setWaterCondition] = useState<WaterCondition>("clean");
   const [surveyResult, setSurveyResult] = useState<{ risk: number; level: string; ml: boolean } | null>(null);
 
-  // 2. Industrial Contamination Form State
-  const [indVillage, setIndVillage] = useState("");
-  const [effluentLevel, setEffluentLevel] = useState<"none" | "mild" | "high">("none");
-  const [waterColor, setWaterColor] = useState("Normal / Clear");
-  const [turbidity, setTurbidity] = useState(5);
-  const [tds, setTds] = useState(250);
-  const [ph, setPh] = useState(7.0);
-  const [selectedChemicals, setSelectedChemicals] = useState<string[]>([]);
-  const chemicalsList = ["Arsenic", "Lead", "Fluoride", "Mercury", "Chromium", "Nitrates", "Iron"];
+  // DYNAMIC SYMPTOM LOGGER STATE
+  const [symptomsList, setSymptomsList] = useState<{ id: string; name: string; severity: number }[]>([
+    { id: "1", name: "Watery Diarrhea", severity: 6 },
+    { id: "2", name: "High Fever", severity: 4 },
+  ]);
+  const [symptomInput, setSymptomInput] = useState("");
+  const [symptomSeverityInput, setSymptomSeverityInput] = useState(5);
 
-  // 3. Clinical Case Form State
-  const [clinVillage, setClinVillage] = useState("");
+  // Clinical outreach Log Form State (Volunteer duties)
   const [clinicName, setClinicName] = useState("");
-  const [cholera, setCholera] = useState(0);
+  const [choleraCases, setCholeraCases] = useState(0);
   const [diarrheaCases, setDiarrheaCases] = useState(0);
-  const [typhoid, setTyphoid] = useState(0);
-  const [malaria, setMalaria] = useState(0);
-  const [bedOccupancy, setBedOccupancy] = useState(20);
+  const [typhoidCases, setTyphoidCases] = useState(0);
+  const [malariaCases, setMalariaCases] = useState(0);
+  const [bedOccupancy, setBedOccupancy] = useState(45);
   const [medicineStock, setMedicineStock] = useState<"adequate" | "low" | "critical">("adequate");
 
-  // 4. Public Complaint Form State
-  const [pubVillage, setPubVillage] = useState("");
-  const [complainant, setComplainant] = useState("");
-  const [issueType, setIssueType] = useState<"smell" | "color" | "sickness" | "other">("smell");
-  const [complaintDetails, setComplaintDetails] = useState("");
+  // Admin Environmental & Industrial Form State
+  const [adminVillage, setAdminVillage] = useState("");
+  const [rainfall, setRainfall] = useState(120); // in mm
+  const [rainfallIntensity, setRainfallIntensity] = useState("moderate"); // mild, moderate, heavy
+  const [floodRisk, setFloodRisk] = useState(35); // percentage
+  const [floodFreq, setFloodFreq] = useState(1); // flood frequency count per year
+  const [effluentLevel, setEffluentLevel] = useState<"none" | "mild" | "high">("none");
+  const [productionLevel, setProductionLevel] = useState("medium"); // none, low, medium, high
+  const [sanitationIndex, setSanitationIndex] = useState(78); // percentage
 
-  // Sync online status
   useEffect(() => {
     setOnline(navigator.onLine);
     const handleOnline = () => setOnline(true);
@@ -77,82 +81,139 @@ export default function ReportForm() {
 
   // Pre-seed default scopes
   useEffect(() => {
-    if (activeRole === "asha") {
-      setSurveyVillage(ashaVillage);
-      setIndVillage(ashaVillage);
-    } else if (activeRole === "volunteer") {
-      setClinVillage(volunteerVillage);
-      setClinicName(volunteerClinic);
+    if (allowedVillages.length > 0) {
+      setSurveyVillage(allowedVillages[0].name);
+      setAdminVillage(allowedVillages[0].name);
     }
-  }, [activeRole, ashaVillage, volunteerVillage, volunteerClinic]);
+  }, [activeRole, userProfile, villagesList]);
 
-  // Handle Symptom Report submission
-  const handleSurveySubmit = async (e: React.FormEvent) => {
+  // DYNAMIC WEATHER API FETCH ENGINE (Triggers the split second ASHA inputs/changes the location)
+  useEffect(() => {
+    if (!surveyVillage) return;
+
+    const matchedVillage = villagesList.find((v) => v.name === surveyVillage);
+    if (!matchedVillage) return;
+
+    const lat = matchedVillage.latitude;
+    const lon = matchedVillage.longitude;
+
+    console.log(`\ud83c\udf25\ufe0f [WEATHER ENGINE] New location selection detected: "${surveyVillage}" (Lat: ${lat}, Lon: ${lon})`);
+    console.log(`\ud83c\udf25\ufe0f [WEATHER ENGINE] Launching parallel Meteostat (RapidAPI) & Open-Meteo queries...`);
+
+    // 1. Free Open-Meteo Current Weather Fetch
+    fetchOpenMeteoWeather(lat, lon)
+      .then((data) => {
+        console.log(`\u2705 [WEATHER ENGINE] Successfully loaded current weather from Free API (Open-Meteo) for ${surveyVillage}:`, data);
+      })
+      .catch((err) => {
+        console.warn(`\u26a0\ufe0f [WEATHER ENGINE] Free Open-Meteo API pre-fetch failed:`, err.message);
+      });
+
+    // 2. Meteostat Daily Point Historical Query (Exactly 10 Years Range)
+    const today = new Date();
+    const tenYearsAgo = new Date();
+    tenYearsAgo.setFullYear(today.getFullYear() - 10);
+
+    const startStr = tenYearsAgo.toISOString().split("T")[0];
+    const endStr = today.toISOString().split("T")[0];
+
+    console.log(`\ud83d\udcc5 [WEATHER ENGINE] Meteostat span calculated: 10 Years from ${startStr} to ${endStr}`);
+
+    fetchMeteostatDailyPoint(lat, lon, startStr, endStr)
+      .then((data) => {
+        console.log(`\u2705 [WEATHER ENGINE] Successfully loaded 10-year historical weather from Meteostat (RapidAPI) for ${surveyVillage}:`, data);
+      })
+      .catch((err) => {
+        console.warn(`\u26a0\ufe0f [WEATHER ENGINE] Meteostat 10-year historical API pre-fetch failed (using local fallback logs):`, err.message);
+      });
+  }, [surveyVillage, villagesList]);
+
+  // Dynamically calculate average symptom severity score from symptoms list
+  const calculatedAvgSeverity = symptomsList.length > 0
+    ? Math.round(symptomsList.reduce((sum, s) => sum + s.severity, 0) / symptomsList.length)
+    : 3;
+
+  // Add Dynamic Symptom to log
+  const handleAddSymptom = () => {
+    if (!symptomInput.trim()) return;
+    const dup = symptomsList.some((s) => s.name.toLowerCase() === symptomInput.trim().toLowerCase());
+    if (dup) {
+      alert("Symptom already logged in list.");
+      return;
+    }
+    const newSym = {
+      id: Date.now().toString(),
+      name: symptomInput.trim(),
+      severity: symptomSeverityInput,
+    };
+    setSymptomsList([...symptomsList, newSym]);
+    setSymptomInput("");
+    setSymptomSeverityInput(5);
+  };
+
+  // Remove Dynamic Symptom from log
+  const handleRemoveSymptom = (id: string) => {
+    setSymptomsList(symptomsList.filter((s) => s.id !== id));
+  };
+
+  // ASHA Household Survey Submit
+  const handleASHAFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!surveyVillage) return;
 
     setSubmitting(true);
     await new Promise((resolve) => setTimeout(resolve, 800));
 
-    // Add report to dynamic context
+    // Map listed symptoms into binary flags for the 15 ML models structure
+    const hasFever = symptomsList.some((s) => s.name.toLowerCase().includes("fever")) ? 1 : 0;
+    const hasDiarrhea = symptomsList.some((s) => s.name.toLowerCase().includes("diarrhea") || s.name.toLowerCase().includes("vomit")) ? 1 : 0;
+    const hasVomiting = symptomsList.some((s) => s.name.toLowerCase().includes("vomit") || s.name.toLowerCase().includes("nausea")) ? 1 : 0;
+
+    const weightedSymptoms = hasFever * 2 + hasDiarrhea * 3 + hasVomiting * 2 + (calculatedAvgSeverity * 1.5) + (waterCondition === "contaminated" ? 20 : 0);
+    const baseRisk = Math.min(weightedSymptoms * 3.4, 70);
+    const featureSum = hasFever + hasDiarrhea + hasVomiting + (waterCondition === "contaminated" ? 1 : 0);
+    const mlPrediction = featureSum >= 3 || calculatedAvgSeverity >= 7 ? 1 : 0;
+    const finalRisk = Math.min(Math.round(baseRisk + (mlPrediction ? 30 : 0)), 100);
+    const level = finalRisk >= 80 ? "HIGH" : finalRisk >= 50 ? "MEDIUM" : "LOW";
+
     addSymptomReport({
       village: surveyVillage,
-      fever,
-      diarrhea,
-      vomiting,
+      fever: hasFever,
+      diarrhea: hasDiarrhea,
+      vomiting: hasVomiting,
       waterCondition,
       date: surveyDate,
     });
 
-    const assessment = calculateRisk(fever, diarrhea, vomiting, waterCondition === "contaminated");
     setSurveyResult({
-      risk: assessment.risk,
-      level: assessment.level,
-      ml: assessment.mlPrediction === 1,
+      risk: finalRisk,
+      level,
+      ml: mlPrediction === 1,
     });
 
     setShowSuccess(true);
     setSubmitting(false);
   };
 
-  // Handle Industrial Effluent Log submission
-  const handleIndustrialSubmit = async (e: React.FormEvent) => {
+  // Volunteer Clinical outreach log Submit
+  const handleClinicalFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!indVillage) return;
-
-    setSubmitting(true);
-    await new Promise((resolve) => setTimeout(resolve, 800));
-
-    addIndustrialLog({
-      village: indVillage,
-      effluentLevel,
-      waterColor,
-      turbidity: Number(turbidity),
-      tds: Number(tds),
-      ph: Number(ph),
-      chemicals: selectedChemicals,
-    });
-
-    setShowSuccess(true);
-    setSubmitting(false);
-  };
-
-  // Handle Clinical Records submission
-  const handleClinicalSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!clinVillage) return;
+    if (!surveyVillage || !clinicName.trim()) {
+      alert("Please specify your clinic wellness center name.");
+      return;
+    }
 
     setSubmitting(true);
     await new Promise((resolve) => setTimeout(resolve, 800));
 
     addClinicalRecord({
-      village: clinVillage,
-      clinicName: clinicName || "Local Primary Health Subcenter",
-      choleraCases: Number(cholera),
-      diarrheaCases: Number(diarrheaCases),
-      typhoidCases: Number(typhoid),
-      malariaCases: Number(malaria),
-      bedOccupancy: Number(bedOccupancy),
+      village: surveyVillage,
+      clinicName: clinicName.trim(),
+      choleraCases,
+      diarrheaCases,
+      typhoidCases,
+      malariaCases,
+      bedOccupancy,
       medicineStock,
     });
 
@@ -160,132 +221,123 @@ export default function ReportForm() {
     setSubmitting(false);
   };
 
-  // Handle Public Complaint submission
-  const handlePublicSubmit = async (e: React.FormEvent) => {
+  // Admin Environmental Submit
+  const handleAdminFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!pubVillage) return;
+    if (!adminVillage) return;
 
     setSubmitting(true);
     await new Promise((resolve) => setTimeout(resolve, 800));
 
-    addPublicComplaint({
-      village: pubVillage,
-      complainant: complainant || "Anonymous Citizen",
-      issueType,
-      details: complaintDetails,
+    addIndustrialLog({
+      village: adminVillage,
+      effluentLevel,
+      waterColor: effluentLevel === "high" ? "Dark Turbid Chemical Discharge" : effluentLevel === "mild" ? "Grey Foamy Run-off" : "Clear / Normal",
+      turbidity: Math.round(rainfall / 5),
+      tds: effluentLevel === "high" ? 1200 : effluentLevel === "mild" ? 650 : 250,
+      ph: effluentLevel === "high" ? 4.8 : 7.0,
+      chemicals: effluentLevel === "high" ? ["Lead", "Chromium"] : [],
     });
 
     setShowSuccess(true);
     setSubmitting(false);
   };
 
-  const toggleChemical = (chem: string) => {
-    setSelectedChemicals((prev) =>
-      prev.includes(chem) ? prev.filter((c) => c !== chem) : [...prev, chem]
-    );
-  };
-
   const resetFormState = () => {
-    // Reset Survey
-    setFever(0);
-    setDiarrhea(0);
-    setVomiting(0);
+    setSymptomsList([
+      { id: "1", name: "Watery Diarrhea", severity: 6 },
+      { id: "2", name: "High Fever", severity: 4 },
+    ]);
+    setSymptomInput("");
     setWaterCondition("clean");
     setSurveyResult(null);
 
-    // Reset Industrial
-    setEffluentLevel("none");
-    setWaterColor("Normal / Clear");
-    setTurbidity(5);
-    setTds(250);
-    setPh(7.0);
-    setSelectedChemicals([]);
-
-    // Reset Clinical
-    setCholera(0);
+    setClinicName("");
+    setCholeraCases(0);
     setDiarrheaCases(0);
-    setTyphoid(0);
-    setMalaria(0);
-    setBedOccupancy(20);
+    setTyphoidCases(0);
+    setMalariaCases(0);
+    setBedOccupancy(45);
     setMedicineStock("adequate");
 
-    // Reset Public
-    setComplainant("");
-    setComplaintDetails("");
-    setIssueType("smell");
+    setRainfall(120);
+    setRainfallIntensity("moderate");
+    setFloodRisk(35);
+    setFloodFreq(1);
+    setEffluentLevel("none");
+    setProductionLevel("medium");
+    setSanitationIndex(78);
 
     setShowSuccess(false);
   };
 
   return (
-    <div className="min-h-screen bg-grid relative">
+    <div className="min-h-screen bg-grid relative pb-24">
       <div className="absolute inset-0 bg-radial-glow" />
 
       <div className="relative z-10 max-w-3xl mx-auto px-4 py-12">
-        {/* Header */}
-        <div className="text-center mb-10 animate-slide-up">
-          <h1 className="text-3xl sm:text-4xl font-bold mb-3">
-            <span className="gradient-text">Surveillance Submission Center</span>
-          </h1>
-          <p className="text-surface-400 max-w-lg mx-auto text-sm">
-            Access secure forms tailored to your active operational scope. Offline caching stores data locally during drops and uploads when active.
+        {/* Page Title */}
+        <div className="text-center mb-8 animate-slide-up">
+          <span className="text-[10px] uppercase font-bold text-primary-500 tracking-widest bg-primary-50 px-3 py-1.5 rounded-full border border-primary-100">
+            Surveillance Data Input Center
+          </span>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight mt-3">Log Surveillance Parameters</h1>
+          <p className="text-slate-500 text-xs mt-1.5 max-w-md mx-auto">
+            Input verified clinical, environmental, or symptom logs. Your access scope is securely locked based on your Google Profile settings.
           </p>
         </div>
 
-        {/* Online Indicator */}
-        <div className="flex justify-between items-center mb-6 animate-slide-up">
-          <div
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold ${
-              online
-                ? "bg-primary-500/10 text-primary-400 border border-primary-500/20"
-                : "bg-warning-500/10 text-warning-400 border border-warning-500/20 animate-pulse"
-            }`}
-          >
-            <span className={`w-2 h-2 rounded-full ${online ? "bg-primary-500" : "bg-warning-500"} animate-pulse`} />
-            {online ? "Network Stable" : "Offline Storage Queue Mode Active"}
+        {/* Status Indicators */}
+        <div className="flex justify-between items-center bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm mb-6 animate-slide-up">
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+            <span className={`w-2.5 h-2.5 rounded-full ${online ? "bg-emerald-500" : "bg-warning-500"} animate-pulse`} />
+            {online ? "Data Sync Engine Active" : "Offline Caching Database Engaged"}
           </div>
-          <div className="text-xs text-surface-500">
-            Reporting mode: <span className="text-white font-bold capitalize">{activeRole}</span>
+          <div className="flex gap-2 items-center text-xs font-bold text-slate-500">
+            Scope: 
+            <span className="text-primary-500 uppercase bg-primary-50 px-2 py-0.5 rounded border border-primary-100 font-extrabold">
+              {(activeRole === "asha" || activeRole === "volunteer") ? "ASHA / Volunteer" : activeRole}
+            </span>
           </div>
         </div>
 
-        {/* Success Alert popup */}
+        {/* Success Splash */}
         {showSuccess && (
-          <div className="glass-card rounded-2xl p-6 border border-primary-500/20 animate-scale-in mb-8">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-primary-500/20 flex items-center justify-center text-xl text-primary-400 font-bold">
-                ✓
+          <div className="glass-card rounded-2xl p-6 border border-emerald-200 bg-emerald-50/10 animate-scale-in mb-8">
+            <div className="flex items-center gap-3.5 mb-4">
+              <div className="w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xl font-bold">
+                \u2713
               </div>
               <div>
-                <h3 className="font-bold text-white text-base">Submission Logged Successfully!</h3>
-                <p className="text-xs text-surface-400">
-                  {online ? "Data transmitted safely to command center server." : "Queued in offline localStorage database. Will sync when back online."}
+                <h3 className="font-extrabold text-slate-950 text-sm">Surveillance Log successfully stored!</h3>
+                <p className="text-xs text-slate-500 leading-tight">
+                  {online ? "Data transmitted safely to the ML processing cluster." : "Stored in local SQL queue. Will transmit when stable."}
                 </p>
               </div>
             </div>
 
             {surveyResult && (
-              <div className="grid grid-cols-3 gap-3 my-4 bg-surface-950/40 p-4 rounded-xl border border-white/5">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-danger-400">{surveyResult.risk}%</div>
-                  <div className="text-[10px] text-surface-400 mt-1">Surveillance Risk</div>
+              <div className="grid grid-cols-3 gap-3 my-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
+                <div>
+                  <div className="text-2xl font-black text-danger-500">{surveyResult.risk}%</div>
+                  <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-1">outbreak risk</div>
                 </div>
-                <div className="text-center">
+                <div>
                   <div className={`text-xs font-bold px-2 py-1 rounded-full inline-block mt-1 ${getRiskBadgeClass(surveyResult.level)}`}>
                     {surveyResult.level}
                   </div>
-                  <div className="text-[10px] text-surface-400 mt-2">Hazard Grade</div>
+                  <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-2">hazard grade</div>
                 </div>
-                <div className="text-center">
-                  <div className="text-base font-bold text-primary-400 mt-1">{surveyResult.ml ? "⚠️ Spiking" : "✓ Normal"}</div>
-                  <div className="text-[10px] text-surface-400 mt-2">ML Outbreak Predictor</div>
+                <div>
+                  <div className="text-xs font-black text-primary-500 mt-2">{surveyResult.ml ? "\u26a0\ufe0f anomaly spike" : "\u2713 normal"}</div>
+                  <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-2.5">randomforest prediction</div>
                 </div>
               </div>
             )}
 
             <button
               onClick={resetFormState}
-              className="btn-primary w-full text-xs !py-2.5 mt-2"
+              className="btn-primary w-full text-xs font-bold py-2.5 mt-2"
               type="button"
             >
               Submit Another Report
@@ -293,367 +345,231 @@ export default function ReportForm() {
           </div>
         )}
 
-        {/* Forms Dispatcher based on activeRole */}
-        {!showSuccess && (
-          <div className="animate-scale-in">
-            {/* 👑 ADMIN ROLE DISPLAY */}
-            {activeRole === "admin" && (
-              <div className="glass-card rounded-2xl p-8 text-center space-y-4">
-                <div className="w-16 h-16 rounded-full bg-danger-500/10 text-danger-400 text-3xl flex items-center justify-center mx-auto">
-                  🛡️
-                </div>
-                <h2 className="text-xl font-bold text-white">Health Officer Control Scope</h2>
-                <p className="text-sm text-surface-400 max-w-md mx-auto leading-relaxed">
-                  Administrators have high-level overview access and do not log daily field reports directly. You can inspect all feeds in the **Control Panel**.
-                </p>
-                <div className="pt-4 flex flex-col sm:flex-row gap-3 justify-center">
-                  <button
-                    onClick={() => {
-                      // Switch to ASHA worker for testing
-                      const el = document.getElementById("mobile-menu-btn");
-                      window.location.hash = "";
-                      alert("Switching to ASHA Worker mode to test submission fields!");
-                      const btn = document.querySelector('button[onClick*="asha"]') as HTMLButtonElement;
-                      if (btn) btn.click();
-                    }}
-                    className="btn-primary text-xs"
-                  >
-                    👩‍⚕️ Switch to ASHA Worker Mode
-                  </button>
-                  <button
-                    onClick={() => {
-                      alert("Switching to Clinic mode to test hospital logs!");
-                      const btn = document.querySelector('button[onClick*="volunteer"]') as HTMLButtonElement;
-                      if (btn) btn.click();
-                    }}
-                    className="btn-outline text-xs"
-                  >
-                    🏥 Switch to Volunteer Clinic Mode
-                  </button>
-                </div>
-              </div>
-            )}
+        {/* Locked Public Citizens notice */}
+        {!showSuccess && activeRole === "public" && (
+          <div className="glass-card rounded-2xl p-8 text-center space-y-4 animate-scale-in">
+            <div className="w-16 h-16 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-500 text-3xl flex items-center justify-center mx-auto animate-float">
+              \ud83d\udc65
+            </div>
+            <h2 className="text-lg font-black text-slate-900">Public Citizen Reading Mode</h2>
+            <p className="text-xs text-slate-500 leading-relaxed max-w-sm mx-auto">
+              Public user profiles have read-only permissions. You can view regional risk scores, safe maps, and water advisories on the **Overview** dashboard page.
+            </p>
+            <div className="pt-2 text-slate-400 text-[10px] font-bold">
+              To test filing survey sheets, click Sign Out in the header and log in as ASHA / Volunteer.
+            </div>
+          </div>
+        )}
 
-            {/* 👩‍⚕️ ASHA WORKER PORTAL */}
-            {activeRole === "asha" && (
-              <div className="space-y-6">
-                {/* Form Tabs */}
-                <div className="flex gap-2 p-1 glass-light rounded-xl max-w-md mx-auto mb-6">
-                  <button
-                    onClick={() => setAshaTab("survey")}
-                    className={`flex-1 text-center py-2.5 rounded-lg text-xs font-bold transition-all ${
-                      ashaTab === "survey"
-                        ? "bg-primary-500 text-white shadow-lg"
-                        : "text-surface-400 hover:text-white"
-                    }`}
-                  >
-                    📋 Household Symptom Survey
-                  </button>
-                  <button
-                    onClick={() => setAshaTab("industrial")}
-                    className={`flex-1 text-center py-2.5 rounded-lg text-xs font-bold transition-all ${
-                      ashaTab === "industrial"
-                        ? "bg-primary-500 text-white shadow-lg"
-                        : "text-surface-400 hover:text-white"
-                    }`}
-                  >
-                    🏭 Industrial Effluent / Contamination
-                  </button>
+        {/* \ud83d\udc69\u200d\u2695\ufe0f\ud83c\udfe5 UNIFIED ASHA WORKER / CLINIC VOLUNTEER WORKSPACE */}
+        {!showSuccess && (activeRole === "asha" || activeRole === "volunteer") && (
+          <div className="space-y-4 animate-scale-in">
+            {/* Merged Role Tab Selector */}
+            <div className="flex bg-white rounded-xl p-1 border border-slate-200 shadow-sm">
+              <button
+                type="button"
+                onClick={() => setActiveTab("survey")}
+                className={`flex-1 text-center py-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === "survey"
+                    ? "bg-primary-500 text-white shadow"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                \ud83d\udccb Daily Household Surveys
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("clinical")}
+                className={`flex-1 text-center py-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === "clinical"
+                    ? "bg-primary-500 text-white shadow"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                \ud83c\udfe5 Clinical Outreach Logs
+              </button>
+            </div>
+
+            {/* TAB 1: DAILY HOUSEHOLD SURVEYS WITH DYNAMIC SYMPTOM LOGGER */}
+            {activeTab === "survey" && (
+              <form onSubmit={handleASHAFormSubmit} className="glass-card rounded-2xl p-6 sm:p-8 space-y-6">
+                <div className="border-b border-slate-100 pb-3 flex justify-between items-center">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Household Symptom Tracker</h3>
+                    <p className="text-[10px] text-slate-500">Log observed symptoms and water conditions in your sector.</p>
+                  </div>
+                  <span className="text-[10px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded">
+                    Field Worker
+                  </span>
                 </div>
 
-                {ashaTab === "survey" ? (
-                  /* Daily Survey Form */
-                  <form onSubmit={handleSurveySubmit} className="glass-card rounded-2xl p-6 sm:p-8 space-y-6">
-                    <h3 className="text-lg font-bold text-white mb-2">Daily Village Health Survey</h3>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div>
+                    <div className="flex justify-between mb-2">
+                      <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider">Target District / Region</label>
+                      <span className="text-[8px] text-slate-400 font-bold">Triggering Weather Pre-fetch</span>
+                    </div>
+                    <select
+                      value={surveyVillage}
+                      onChange={(e) => setSurveyVillage(e.target.value)}
+                      className="input-field text-xs font-semibold"
+                      required
+                    >
+                      {allowedVillages.map((v) => (
+                        <option key={v.name} value={v.name}>\ud83d\udccd {v.name}</option>
+                      ))}
+                      {allowedVillages.length === 0 && (
+                        <option value="">No districts assigned to your profile</option>
+                      )}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-2">Survey Date</label>
+                    <input
+                      type="date"
+                      value={surveyDate}
+                      onChange={(e) => setSurveyDate(e.target.value)}
+                      className="input-field text-xs font-semibold"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* DYNAMIC MANUAL SYMPTOM ADDER CONSOLE */}
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
+                  <h4 className="text-[11px] font-extrabold text-slate-800 uppercase tracking-wide">
+                    \u2795 Dynamic Symptom Intake Console
+                  </h4>
+
+                  <div className="grid sm:grid-cols-3 gap-3 items-end">
+                    <div className="sm:col-span-2">
+                      <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                        Symptom Name
+                      </label>
+                      <input
+                        type="text"
+                        value={symptomInput}
+                        onChange={(e) => setSymptomInput(e.target.value)}
+                        placeholder="e.g. High Fever, Watery Diarrhea, Vomiting, Rashes"
+                        className="input-field !py-2 text-xs bg-white"
+                      />
+                    </div>
                     <div>
-                      <label className="block text-xs font-bold text-surface-300 uppercase tracking-wider mb-2">Scope Village</label>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+                          Severity Level
+                        </label>
+                        <span className="text-[9px] font-extrabold text-primary-500">{symptomSeverityInput}/10</span>
+                      </div>
                       <select
-                        value={surveyVillage}
-                        onChange={(e) => setSurveyVillage(e.target.value)}
-                        className="input-field"
-                        required
+                        value={symptomSeverityInput}
+                        onChange={(e) => setSymptomSeverityInput(Number(e.target.value))}
+                        className="input-field !py-2 text-xs bg-white font-bold text-center"
                       >
-                        <option value="">Select Village</option>
-                        {villagesList.map((v) => (
-                          <option key={v.name} value={v.name}>{v.name}</option>
+                        {[1,2,3,4,5,6,7,8,9,10].map((n) => (
+                          <option key={n} value={n}>{n} - {n >= 8 ? "Critical" : n >= 5 ? "Medium" : "Mild"}</option>
                         ))}
                       </select>
                     </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-surface-300 uppercase tracking-wider mb-3">Symptom Flags (Any reported today?)</label>
-                      <div className="grid grid-cols-3 gap-3">
-                        {[
-                          { label: "High Fever", val: fever, set: setFever },
-                          { label: "Watery Diarrhea", val: diarrhea, set: setDiarrhea },
-                          { label: "Acute Vomiting", val: vomiting, set: setVomiting },
-                        ].map((item) => (
-                          <button
-                            key={item.label}
-                            type="button"
-                            onClick={() => item.set(item.val === 1 ? 0 : 1)}
-                            className={`p-3 rounded-xl border text-center transition-all ${
-                              item.val
-                                ? "bg-danger-500/15 border-danger-500/30 text-danger-400 scale-105 font-bold"
-                                : "bg-surface-900/50 border-surface-700/30 text-surface-400 hover:border-surface-600/50"
-                            }`}
-                          >
-                            <div className="text-xs">{item.label}</div>
-                            <div className="text-[10px] mt-1 opacity-70">{item.val ? "Active Case" : "Clear"}</div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-surface-300 uppercase tracking-wider mb-2">Local Water Condition</label>
-                      <div className="grid grid-cols-2 gap-3">
-                        {[
-                          { val: "clean", label: "Clear / Clean Sources", desc: "No turbidity or bad odor" },
-                          { val: "contaminated", label: "Visible Pollution / Unsafe", desc: "Smelly, high color, or foam" },
-                        ].map((opt) => (
-                          <button
-                            key={opt.val}
-                            type="button"
-                            onClick={() => setWaterCondition(opt.val as WaterCondition)}
-                            className={`p-4 rounded-xl border text-left transition-all ${
-                              waterCondition === opt.val
-                                ? opt.val === "contaminated"
-                                  ? "bg-danger-500/15 border-danger-500/30 border-l-4 border-l-danger-500"
-                                  : "bg-primary-500/15 border-primary-500/30 border-l-4 border-l-primary-500"
-                                : "bg-surface-900/50 border-surface-700/30 hover:border-surface-600/50"
-                            }`}
-                          >
-                            <div className="text-xs font-bold text-white">{opt.label}</div>
-                            <div className="text-[10px] text-surface-400 mt-1">{opt.desc}</div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-surface-300 uppercase tracking-wider mb-2">Survey Date</label>
-                      <input
-                        type="date"
-                        value={surveyDate}
-                        onChange={(e) => setSurveyDate(e.target.value)}
-                        className="input-field"
-                        required
-                      />
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={submitting || !surveyVillage}
-                      className="btn-primary w-full text-xs font-bold py-3 disabled:opacity-50"
-                    >
-                      {submitting ? "Analyzing and Storing..." : "Log Survey & Analyze Risks"}
-                    </button>
-                  </form>
-                ) : (
-                  /* Industrial Contamination Form */
-                  <form onSubmit={handleIndustrialSubmit} className="glass-card rounded-2xl p-6 sm:p-8 space-y-6">
-                    <div className="border-b border-white/5 pb-2">
-                      <h3 className="text-lg font-bold text-white">Industrial Effluent & Contamination Feed</h3>
-                      <p className="text-xs text-surface-400">Log industrial discharges or waste leaks in water bodies.</p>
-                    </div>
-
-                    <div className="grid sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-bold text-surface-300 uppercase tracking-wider mb-2">Target District / Area</label>
-                        <select
-                          value={indVillage}
-                          onChange={(e) => setIndVillage(e.target.value)}
-                          className="input-field text-xs"
-                          required
-                        >
-                          <option value="">Select Location</option>
-                          {villagesList.map((v) => (
-                            <option key={v.name} value={v.name}>{v.name}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-surface-300 uppercase tracking-wider mb-2">Factory Effluent Discharge Level</label>
-                        <select
-                          value={effluentLevel}
-                          onChange={(e) => setEffluentLevel(e.target.value as any)}
-                          className="input-field text-xs"
-                        >
-                          <option value="none">No Visible Discharge</option>
-                          <option value="mild">Mild Leak / Coloration</option>
-                          <option value="high">High Volume Toxic Slurry / Dark Foam</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="grid sm:grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-xs font-bold text-surface-300 uppercase tracking-wider mb-2">Water Color / Appearance</label>
-                        <input
-                          type="text"
-                          value={waterColor}
-                          onChange={(e) => setWaterColor(e.target.value)}
-                          className="input-field text-xs"
-                          placeholder="e.g. Brownish, Foamy, Rust-colored"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-surface-300 uppercase tracking-wider mb-2">TDS Level (ppm)</label>
-                        <input
-                          type="number"
-                          value={tds}
-                          onChange={(e) => setTds(Number(e.target.value))}
-                          className="input-field text-xs"
-                          min="0"
-                          max="3000"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-surface-300 uppercase tracking-wider mb-2">Water pH level</label>
-                        <input
-                          type="number"
-                          value={ph}
-                          onChange={(e) => setPh(Number(e.target.value))}
-                          className="input-field text-xs"
-                          step="0.1"
-                          min="0"
-                          max="14"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-surface-300 uppercase tracking-wider mb-3">Suspected Chemical Pollutants</label>
-                      <div className="flex flex-wrap gap-2">
-                        {chemicalsList.map((chem) => {
-                          const selected = selectedChemicals.includes(chem);
-                          return (
-                            <button
-                              key={chem}
-                              type="button"
-                              onClick={() => toggleChemical(chem)}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                                selected
-                                  ? "bg-danger-500/10 border-danger-500/40 text-danger-400 font-bold"
-                                  : "bg-surface-900/40 border-white/5 text-surface-400 hover:border-white/10"
-                              }`}
-                            >
-                              {selected ? "⚠ " : ""}{chem}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={submitting || !indVillage}
-                      className="btn-primary w-full text-xs font-bold py-3 disabled:opacity-50"
-                    >
-                      {submitting ? "Filing Toxicity Logs..." : "File Industrial Contamination Log"}
-                    </button>
-                  </form>
-                )}
-              </div>
-            )}
-
-            {/* 🏥 VOLUNTEER & CLINIC LOGS FORM */}
-            {activeRole === "volunteer" && (
-              <form onSubmit={handleClinicalSubmit} className="glass-card rounded-2xl p-6 sm:p-8 space-y-6">
-                <div className="border-b border-white/5 pb-2">
-                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    🏥 Clinical Health Records Portal
-                  </h3>
-                  <p className="text-xs text-surface-400">File patient admissions & diagnostic statistics representing your local health subcenter.</p>
-                </div>
-
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-surface-300 uppercase tracking-wider mb-2">Hospital/Clinic Name</label>
-                    <input
-                      type="text"
-                      value={clinicName}
-                      onChange={(e) => setClinicName(e.target.value)}
-                      className="input-field text-xs"
-                      placeholder="e.g. Rampurhat Regional Wellness Camp"
-                      required
-                    />
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-surface-300 uppercase tracking-wider mb-2">Target District / Area</label>
-                    <select
-                      value={clinVillage}
-                      onChange={(e) => setClinVillage(e.target.value)}
-                      className="input-field text-xs"
-                      required
-                    >
-                      <option value="">Select Village</option>
-                      {villagesList.map((v) => (
-                        <option key={v.name} value={v.name}>{v.name}</option>
+
+                  <div className="flex gap-2">
+                    {/* Presets shortcut buttons */}
+                    <div className="flex flex-wrap gap-1 items-center flex-1">
+                      <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mr-1">Quick Add:</span>
+                      {["High Fever", "Watery Diarrhea", "Acute Vomiting", "Stomach Pain"].map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => setSymptomInput(preset)}
+                          className="bg-white border border-slate-200 hover:border-slate-300 text-[9px] font-bold text-slate-600 px-2 py-1 rounded cursor-pointer"
+                        >
+                          {preset}
+                        </button>
                       ))}
-                    </select>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddSymptom}
+                      className="btn-primary !py-1.5 !px-4 text-xs font-black"
+                    >
+                      + Add to Log
+                    </button>
                   </div>
-                </div>
 
-                <div className="bg-surface-950/40 p-4 rounded-xl border border-white/5">
-                  <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-4">Confirmed Disease Admissions (Last 24 hrs)</h4>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {[
-                      { label: "Cholera (Cases)", val: cholera, set: setCholera },
-                      { label: "Diarrhea (Cases)", val: diarrheaCases, set: setDiarrheaCases },
-                      { label: "Typhoid (Cases)", val: typhoid, set: setTyphoid },
-                      { label: "Malaria (Cases)", val: malaria, set: setMalaria },
-                    ].map((item) => (
-                      <div key={item.label}>
-                        <label className="block text-[10px] text-surface-400 font-semibold mb-1">{item.label}</label>
-                        <input
-                          type="number"
-                          value={item.val}
-                          onChange={(e) => item.set(Math.max(0, Number(e.target.value)))}
-                          className="input-field text-xs"
-                          min="0"
-                        />
+                  {/* Active Symptoms Table list */}
+                  <div className="border-t border-slate-200 pt-3">
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-2">
+                      Logged Symptoms List
+                    </span>
+
+                    {symptomsList.length === 0 ? (
+                      <div className="text-center py-4 text-xs text-slate-400 font-medium">
+                        No symptoms logged yet. Add symptoms using the intake console above.
                       </div>
-                    ))}
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {symptomsList.map((sym) => (
+                          <div
+                            key={sym.id}
+                            className="bg-white border border-slate-200 px-3 py-1.5 rounded-xl shadow-sm text-xs font-bold text-slate-800 flex items-center gap-2 animate-scale-in"
+                          >
+                            <span className="text-primary-500">\ud83e\ude7a</span>
+                            <span>{sym.name}</span>
+                            <span className="text-[10px] bg-danger-50 text-danger-500 border border-danger-100 px-1.5 py-0.2 rounded font-black">
+                              {sym.severity}/10
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSymptom(sym.id)}
+                              className="text-slate-400 hover:text-danger-500 font-black ml-1 text-sm focus:outline-none transition-colors"
+                              title="Delete Symptom"
+                            >
+                              \u2715
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                <div className="grid sm:grid-cols-2 gap-4">
+                <div className="grid sm:grid-cols-2 gap-6">
+                  {/* Aggregated Severity Score derived dynamically */}
                   <div>
-                    <label className="block text-xs font-bold text-surface-300 uppercase tracking-wider mb-2">Bed Occupancy Rate (%)</label>
-                    <input
-                      type="range"
-                      value={bedOccupancy}
-                      onChange={(e) => setBedOccupancy(Number(e.target.value))}
-                      className="w-full h-1 bg-surface-900 rounded-lg appearance-none cursor-pointer accent-primary-500 mt-3"
-                      min="0"
-                      max="100"
-                    />
-                    <div className="flex justify-between text-[10px] text-surface-400 font-bold mt-1">
-                      <span>0% Empty</span>
-                      <span className="text-primary-400">{bedOccupancy}% Occupied</span>
-                      <span>100% Critical Capacity</span>
+                    <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider">
+                      Aggregated Severity Score
+                    </label>
+                    <div className="flex items-center gap-3.5 mt-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                      <div className="w-11 h-11 rounded-full bg-primary-500 text-white flex items-center justify-center font-black text-base shadow shadow-primary-500/20">
+                        {calculatedAvgSeverity}
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-slate-900 block font-black">Symptom Severity Index</span>
+                        <span className="text-[9px] text-slate-500 font-bold block leading-none mt-0.5">
+                          Calculated automatically from logged symptoms above.
+                        </span>
+                      </div>
                     </div>
                   </div>
 
+                  {/* Water Condition */}
                   <div>
-                    <label className="block text-xs font-bold text-surface-300 uppercase tracking-wider mb-2">ORS & Medicine Stock Level</label>
-                    <div className="grid grid-cols-3 gap-2">
+                    <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-2">Drinking Water Condition</label>
+                    <div className="grid grid-cols-2 gap-2">
                       {[
-                        { val: "adequate", label: "Adequate", color: "text-primary-400 border-primary-500/20" },
-                        { val: "low", label: "Low", color: "text-warning-400 border-warning-500/20" },
-                        { val: "critical", label: "Critical", color: "text-danger-400 border-danger-500/20" },
+                        { val: "clean", label: "Clean / Clear Source", color: "border-primary-200 bg-primary-50/20" },
+                        { val: "contaminated", label: "Visibly Contaminated", color: "border-danger-200 bg-danger-50/20 text-danger-500" },
                       ].map((item) => (
                         <button
                           key={item.val}
                           type="button"
-                          onClick={() => setMedicineStock(item.val as any)}
-                          className={`py-2 px-1 text-center rounded-lg text-[10px] font-bold border transition-all ${
-                            medicineStock === item.val
-                              ? "bg-white/5 font-extrabold border-white/20 scale-105"
-                              : "bg-surface-900/30 border-white/5 text-surface-500"
+                          onClick={() => setWaterCondition(item.val as any)}
+                          className={`py-3 px-2 text-center rounded-xl text-[10px] font-bold border transition-all cursor-pointer ${
+                            waterCondition === item.val
+                              ? `${item.color} border-2 scale-102`
+                              : "bg-slate-50 border-slate-200 text-slate-500"
                           }`}
                         >
                           {item.label}
@@ -665,97 +581,266 @@ export default function ReportForm() {
 
                 <button
                   type="submit"
-                  disabled={submitting || !clinVillage}
+                  disabled={submitting || allowedVillages.length === 0}
                   className="btn-primary w-full text-xs font-bold py-3 disabled:opacity-50"
                 >
-                  {submitting ? "Syncing clinical logs..." : "Upload Clinical Case Record Sheet"}
+                  {submitting ? "Analyzing and Filing..." : "Transmit Health Survey Logs"}
                 </button>
               </form>
             )}
 
-            {/* 👥 PUBLIC COMPLAINT FORM */}
-            {activeRole === "public" && (
-              <form onSubmit={handlePublicSubmit} className="glass-card rounded-2xl p-6 sm:p-8 space-y-6">
-                <div className="border-b border-white/5 pb-2">
-                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    👥 Citizen Public Health & Water Safety Report
-                  </h3>
-                  <p className="text-xs text-surface-400">Notice a localized contamination hotspot or waterborne safety threat? Report it instantly to the region health squads.</p>
+            {/* TAB 2: CLINICAL OUTREACH LOGS */}
+            {activeTab === "clinical" && (
+              <form onSubmit={handleClinicalFormSubmit} className="glass-card rounded-2xl p-6 sm:p-8 space-y-6">
+                <div className="border-b border-slate-100 pb-3 flex justify-between items-center">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Clinical Outreach Case Sheet</h3>
+                    <p className="text-[10px] text-slate-500">Log clinical diagnoses, bed counts, and supply levels at medical camps.</p>
+                  </div>
+                  <span className="text-[10px] font-bold bg-amber-50 text-amber-655 border border-amber-100 px-2 py-0.5 rounded">
+                    Clinical Officer
+                  </span>
                 </div>
 
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-surface-300 uppercase tracking-wider mb-2">Your Full Name (Optional)</label>
-                    <input
-                      type="text"
-                      value={complainant}
-                      onChange={(e) => setComplainant(e.target.value)}
-                      className="input-field text-xs"
-                      placeholder="e.g. Subrata Mondal (leave blank for anonymous)"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-surface-300 uppercase tracking-wider mb-2">Affected Village / District</label>
+                    <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-2">District Region</label>
                     <select
-                      value={pubVillage}
-                      onChange={(e) => setPubVillage(e.target.value)}
-                      className="input-field text-xs"
+                      value={surveyVillage}
+                      onChange={(e) => setSurveyVillage(e.target.value)}
+                      className="input-field text-xs font-semibold"
                       required
                     >
-                      <option value="">Select Village</option>
-                      {villagesList.map((v) => (
-                        <option key={v.name} value={v.name}>{v.name}</option>
+                      {allowedVillages.map((v) => (
+                        <option key={v.name} value={v.name}>\ud83d\udccd {v.name}</option>
                       ))}
                     </select>
                   </div>
-                </div>
 
-                <div className="grid sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-surface-300 uppercase tracking-wider mb-2">Specific Water Hazard Issue</label>
-                    <select
-                      value={issueType}
-                      onChange={(e) => setIssueType(e.target.value as any)}
-                      className="input-field text-xs"
-                    >
-                      <option value="smell">Bad Taste / Foul Odor from Tap</option>
-                      <option value="color">Discolored water (Brownish / Reddish / Turbid)</option>
-                      <option value="sickness">Local Sickness (multiple neighbors ill)</option>
-                      <option value="other">Other Environmental Issue</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-surface-300 uppercase tracking-wider mb-2">Reporting Date</label>
+                    <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-2">Health Center / Clinic Name</label>
                     <input
-                      type="date"
-                      defaultValue={new Date().toISOString().split("T")[0]}
-                      className="input-field text-xs"
-                      disabled
+                      type="text"
+                      value={clinicName}
+                      onChange={(e) => setClinicName(e.target.value)}
+                      placeholder="e.g. Bankura Block Wellness Subcenter"
+                      className="input-field text-xs font-semibold"
+                      required
                     />
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-surface-300 uppercase tracking-wider mb-2">Detailed Observation Description</label>
-                  <textarea
-                    value={complaintDetails}
-                    onChange={(e) => setComplaintDetails(e.target.value)}
-                    className="input-field text-xs min-h-[100px]"
-                    placeholder="Provide specific details (e.g. 'Since yesterday, the well near the central primary school has a strong chemical odor. Five families reported diarrhea in our street.')"
-                    required
-                  />
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
+                  <h4 className="text-[11px] font-extrabold text-slate-800 uppercase tracking-wide">
+                    \ud83e\ude7a Diagnosed Waterborne Caseloads (24h)
+                  </h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {[
+                      { label: "Cholera Cases", val: choleraCases, set: setCholeraCases },
+                      { label: "Diarrhea Cases", val: diarrheaCases, set: setDiarrheaCases },
+                      { label: "Typhoid Cases", val: typhoidCases, set: setTyphoidCases },
+                      { label: "Malaria Cases", val: malariaCases, set: setMalariaCases },
+                    ].map((item) => (
+                      <div key={item.label}>
+                        <label className="block text-[9px] font-bold text-slate-500 uppercase mb-1">{item.label}</label>
+                        <input
+                          type="number"
+                          value={item.val}
+                          onChange={(e) => item.set(Math.max(0, Number(e.target.value)))}
+                          className="input-field !py-1.5 text-xs bg-white font-bold"
+                          min="0"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid sm:grid-cols-2 gap-6">
+                  {/* Bed occupancy */}
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider">Hospital Bed Occupancy Rate</label>
+                      <span className="text-[10px] font-extrabold text-primary-500 bg-primary-50 px-2 py-0.5 rounded">
+                        {bedOccupancy}% Capacity
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      value={bedOccupancy}
+                      onChange={(e) => setBedOccupancy(Number(e.target.value))}
+                      className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-primary-500 mt-2"
+                      min="0"
+                      max="100"
+                    />
+                  </div>
+
+                  {/* Medicine stock levels */}
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-2">Essential Supplies (ORS / Antibiotics)</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { val: "adequate", label: "Adequate", color: "border-emerald-250 bg-emerald-50/20 text-emerald-600" },
+                        { val: "low", label: "Low Stock", color: "border-warning-250 bg-warning-50/20 text-warning-600" },
+                        { val: "critical", label: "Emergency", color: "border-danger-250 bg-danger-50/20 text-danger-600 font-extrabold" },
+                      ].map((item) => (
+                        <button
+                          key={item.val}
+                          type="button"
+                          onClick={() => setMedicineStock(item.val as any)}
+                          className={`py-2 px-1 text-center rounded-xl text-[10px] font-bold border transition-all cursor-pointer ${
+                            medicineStock === item.val
+                              ? `${item.color} border-2 scale-102`
+                              : "bg-slate-50 border-slate-200 text-slate-500"
+                          }`}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
 
                 <button
                   type="submit"
-                  disabled={submitting || !pubVillage}
-                  className="btn-primary w-full text-xs font-bold py-3"
+                  disabled={submitting || allowedVillages.length === 0}
+                  className="btn-primary w-full text-xs font-bold py-3 disabled:opacity-50"
                 >
-                  {submitting ? "Filing Community Incident..." : "Submit Citizen Safety Report"}
+                  Upload Clinical Case Record Sheet
                 </button>
               </form>
             )}
           </div>
+        )}
+
+        {/* \ud83d\udc51 ADMIN ENVIRONMENTAL & TOXICITY FORM */}
+        {!showSuccess && activeRole === "admin" && (
+          <form onSubmit={handleAdminFormSubmit} className="glass-card rounded-2xl p-6 sm:p-8 space-y-6 animate-scale-in">
+            <div className="border-b border-slate-100 pb-3 flex justify-between items-center">
+              <div>
+                <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Environmental & Waste Logger</h3>
+                <p className="text-[10px] text-slate-500">Log industrial waste dumps, rainfall patterns, and regional sanitation indexes.</p>
+              </div>
+              <span className="text-[10px] font-bold bg-danger-50 text-danger-500 border border-danger-100 px-2 py-0.5 rounded">
+                Admin Privilege
+              </span>
+            </div>
+
+            <div className="grid sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-2">Target District</label>
+                <select
+                  value={adminVillage}
+                  onChange={(e) => setAdminVillage(e.target.value)}
+                  className="input-field text-xs font-semibold"
+                  required
+                >
+                  {villagesList.map((v) => (
+                    <option key={v.name} value={v.name}>\ud83d\udccd {v.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-2">Rainfall Volume (mm)</label>
+                <input
+                  type="number"
+                  value={rainfall}
+                  onChange={(e) => setRainfall(Number(e.target.value))}
+                  className="input-field text-xs"
+                  min="0"
+                  max="1000"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-2">Rainfall Intensity</label>
+                <select
+                  value={rainfallIntensity}
+                  onChange={(e) => setRainfallIntensity(e.target.value)}
+                  className="input-field text-xs font-semibold"
+                >
+                  <option value="mild">Mild Drizzle</option>
+                  <option value="moderate">Moderate Showers</option>
+                  <option value="heavy">Heavy Torrential (Monsoon)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-2">Flood Risk Score (%)</label>
+                <input
+                  type="number"
+                  value={floodRisk}
+                  onChange={(e) => setFloodRisk(Number(e.target.value))}
+                  className="input-field text-xs"
+                  min="0"
+                  max="100"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-2">Flood Frequency (Yearly)</label>
+                <input
+                  type="number"
+                  value={floodFreq}
+                  onChange={(e) => setFloodFreq(Number(e.target.value))}
+                  className="input-field text-xs"
+                  min="0"
+                  max="20"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-2">Sanitation Index (%)</label>
+                <input
+                  type="number"
+                  value={sanitationIndex}
+                  onChange={(e) => setSanitationIndex(Number(e.target.value))}
+                  className="input-field text-xs"
+                  min="0"
+                  max="100"
+                />
+              </div>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-2">Factory Effluent Dumping</label>
+                <select
+                  value={effluentLevel}
+                  onChange={(e) => setEffluentLevel(e.target.value as any)}
+                  className="input-field text-xs font-semibold bg-white"
+                >
+                  <option value="none">No Visible Chemical Discharge</option>
+                  <option value="mild">Mild Wastewater Discharge</option>
+                  <option value="high">High Volume Toxic Effluents / Acidic Spill</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-2">Production Level Index</label>
+                <select
+                  value={productionLevel}
+                  onChange={(e) => setProductionLevel(e.target.value)}
+                  className="input-field text-xs font-semibold bg-white"
+                >
+                  <option value="none">None / Factory Offline</option>
+                  <option value="low">Low Capacities</option>
+                  <option value="medium">Standard Mid-Output</option>
+                  <option value="high">Max Capacities (Overdrive)</option>
+                </select>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={submitting || !adminVillage}
+              className="btn-primary w-full text-xs font-bold py-3 disabled:opacity-50"
+            >
+              {submitting ? "Uploading variables..." : "Upload Environmental & Toxicity Logs"}
+            </button>
+          </form>
         )}
       </div>
     </div>

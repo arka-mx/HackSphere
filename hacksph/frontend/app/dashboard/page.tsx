@@ -11,45 +11,56 @@ const MapView = dynamic(() => import("@/components/MapView"), { ssr: false });
 
 export default function DashboardPage() {
   const {
+    activeRole,
+    userProfile,
     symptomReports,
     industrialLogs,
     clinicalRecords,
     alerts,
     villagesList,
+    isRegionVisible,
   } = useRole();
 
   const [selectedVillage, setSelectedVillage] = useState("");
   const [copiedSafetyMsg, setCopiedSafetyMsg] = useState(false);
 
-  // Default to first village if none selected
-  useEffect(() => {
-    if (villagesList.length > 0 && !selectedVillage) {
-      setSelectedVillage(villagesList[0].name);
-    }
-  }, [villagesList, selectedVillage]);
+  // Filter logs and villages according to the Active Role's Assigned Districts (Task 8: Data Access Control)
+  const filteredVillages = villagesList.filter((v) => isRegionVisible(v.name));
+  const filteredReports = symptomReports.filter((r) => isRegionVisible(r.village));
+  const filteredAlerts = alerts.filter((a) => isRegionVisible(a.village));
 
-  // Derived statistics from live context
-  const highRisk = villagesList.filter((v) => v.riskLevel === "HIGH").length;
-  const medRisk = villagesList.filter((v) => v.riskLevel === "MEDIUM").length;
-  const lowRisk = villagesList.filter((v) => v.riskLevel === "LOW").length;
-  const activeAlertsCount = alerts.filter((a) => a.status === "active").length;
+  // Default to first filtered village if none selected
+  useEffect(() => {
+    if (filteredVillages.length > 0) {
+      // Keep selection within filtered boundaries
+      const stillValid = filteredVillages.some((v) => v.name === selectedVillage);
+      if (!stillValid) {
+        setSelectedVillage(filteredVillages[0].name);
+      }
+    }
+  }, [filteredVillages, selectedVillage]);
+
+  // Derived statistics from local filtered context
+  const highRiskCount = filteredVillages.filter((v) => v.riskLevel === "HIGH").length;
+  const medRiskCount = filteredVillages.filter((v) => v.riskLevel === "MEDIUM").length;
+  const activeAlertsCount = filteredAlerts.filter((a) => a.status === "active").length;
 
   // Selected Village Health Metrics
-  const currentVillageObj = villagesList.find((v) => v.name === selectedVillage);
-  const villageSymptoms = symptomReports.filter((r) => r.village === selectedVillage);
+  const currentVillageObj = filteredVillages.find((v) => v.name === selectedVillage);
+  const villageSymptoms = filteredReports.filter((r) => r.village === selectedVillage);
   const villageIndustrial = industrialLogs.filter((log) => log.village === selectedVillage);
   const villageClinical = clinicalRecords.filter((rec) => rec.village === selectedVillage);
 
   // Compute a letter Grade based on Risk Score
   const getVillageGrade = (score: number) => {
-    if (score >= 80) return { grade: "F", text: "Hazardous / Outbreak Alert", color: "text-danger-400 border-danger-500/30 bg-danger-500/10" };
-    if (score >= 60) return { grade: "D", text: "Critical Contamination Warning", color: "text-danger-300 border-danger-400/20 bg-danger-400/5" };
-    if (score >= 40) return { grade: "C", text: "Moderate Environmental Risk", color: "text-warning-400 border-warning-500/30 bg-warning-500/10" };
-    if (score >= 20) return { grade: "B", text: "Mild Alert / Under Surveillance", color: "text-primary-300 border-primary-500/10 bg-primary-500/5" };
-    return { grade: "A", text: "Safe Water Parameters", color: "text-primary-400 border-primary-500/30 bg-primary-500/10" };
+    if (score >= 80) return { grade: "F", text: "Hazardous / Outbreak Alert", color: "text-danger-500 border-danger-100 bg-danger-50" };
+    if (score >= 60) return { grade: "D", text: "Critical Contamination Warning", color: "text-danger-400 border-danger-100 bg-danger-50/50" };
+    if (score >= 40) return { grade: "C", text: "Moderate Environmental Risk", color: "text-warning-600 border-warning-100 bg-warning-50" };
+    if (score >= 20) return { grade: "B", text: "Mild Alert / Under Surveillance", color: "text-primary-500 border-primary-100 bg-primary-50/50" };
+    return { grade: "A", text: "Safe Water Parameters", color: "text-emerald-600 border-emerald-100 bg-emerald-50" };
   };
 
-  const currentGrade = currentVillageObj ? getVillageGrade(currentVillageObj.riskScore) : { grade: "A", text: "Safe Parameters", color: "text-primary-400 border-primary-500/20 bg-primary-500/10" };
+  const currentGrade = currentVillageObj ? getVillageGrade(currentVillageObj.riskScore) : { grade: "A", text: "Safe Parameters", color: "text-emerald-650 border-slate-200 bg-slate-50" };
 
   // Collect active observations for selected village
   const activeObservations: string[] = [];
@@ -65,7 +76,7 @@ export default function DashboardPage() {
     const totalCholeraCases = villageClinical.reduce((sum, rec) => sum + rec.choleraCases, 0);
 
     if (highTdsLog) {
-      activeObservations.push(`ASHA reported Chemical Toxicity Leak: High TDS (${highTdsLog.tds} ppm), pH (${highTdsLog.ph})`);
+      activeObservations.push(`ASHA logged Chemical Toxicity Leak: High TDS (${highTdsLog.tds} ppm), pH (${highTdsLog.ph})`);
     }
     if (chemLogs.length > 0) {
       activeObservations.push(`Suspected Contaminants: ${chemLogs.join(", ")}`);
@@ -77,7 +88,7 @@ export default function DashboardPage() {
       activeObservations.push(`Water source flagged contaminated by field worker`);
     }
     if (activeDiarrhea || activeFever) {
-      activeObservations.push(`Household symptom clusters reported in past 48h`);
+      activeObservations.push(`Household sickness symptom clusters reported in past 48h`);
     }
 
     // Set advisory advice
@@ -97,54 +108,73 @@ export default function DashboardPage() {
 
       <div className="relative z-10 max-w-7xl mx-auto px-4 py-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl sm:text-4xl font-bold mb-2">
-            <span className="gradient-text">Surveillance & Safety Dashboard</span>
-          </h1>
-          <p className="text-surface-400 text-xs sm:text-sm">
-            Live epidemic maps, industrial TDS logs, and tailored community wellness indices.
-          </p>
+        <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h1 className="text-3xl font-black text-slate-900 tracking-tight">
+              Surveillance Overview Hub
+            </h1>
+            <p className="text-slate-500 text-xs sm:text-sm mt-1">
+              Dynamic outbreak indicators, predictive hazard maps, and regional water advisories.
+            </p>
+          </div>
+
+          {/* District Scope indicator banner */}
+          {(activeRole === "asha" || activeRole === "volunteer") && userProfile && (
+            <div className="px-3.5 py-2 rounded-xl bg-white border border-slate-200 shadow-sm text-xs font-semibold text-slate-600 flex items-center gap-2">
+              <span>🔒 Assigned District Scope:</span>
+              <div className="flex flex-wrap gap-1">
+                {userProfile.selectedDistricts.map((d) => (
+                  <span key={d} className="bg-primary-50 text-primary-500 border border-primary-100 text-[9px] px-1.5 py-0.5 rounded font-bold">
+                    {d}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Quick Stats */}
+        {/* Quick Stats in NovaBank Grid */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
           {[
-            { label: "Logged Field Reports", value: symptomReports.length, icon: "📋", color: "text-accent-400" },
-            { label: "Surviving Districts", value: villagesList.length, icon: "🏘️", color: "text-primary-400" },
-            { label: "High Risk Alerts", value: highRisk, icon: "🔴", color: "text-danger-400" },
-            { label: "Medium Warning Areas", value: medRisk, icon: "🟡", color: "text-warning-400" },
-            { label: "Active Regional Warnings", value: activeAlertsCount, icon: "🚨", color: "text-danger-400 font-extrabold" },
+            { label: "Assigned Reports", value: filteredReports.length, icon: "📋", color: "text-primary-500" },
+            { label: "District Scope", value: filteredVillages.length, icon: "🏘️", color: "text-slate-700" },
+            { label: "High Risk Districts", value: highRiskCount, icon: "🔴", color: "text-danger-500" },
+            { label: "Warning Regions", value: medRiskCount, icon: "🟡", color: "text-warning-600" },
+            { label: "Active Alerts", value: activeAlertsCount, icon: "🚨", color: "text-danger-500 font-extrabold" },
           ].map((s, i) => (
-            <div key={i} className="glass-card rounded-xl p-4 stat-card hover:scale-105 transition-transform">
+            <div key={i} className="glass-card rounded-2xl p-4 stat-card hover:scale-102 border">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xl sm:text-2xl">{s.icon}</span>
                 <span className={`text-xl sm:text-2xl font-black ${s.color}`}>{s.value}</span>
               </div>
-              <div className="text-[10px] sm:text-xs text-surface-400">{s.label}</div>
+              <div className="text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-wider">{s.label}</div>
             </div>
           ))}
         </div>
 
-        {/* PUBLIC CITIZEN SEARCH HUB (Primary Dashboard Feature) */}
-        <div className="glass-card rounded-2xl p-6 mb-8 border border-primary-500/10">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 border-b border-white/5 pb-4">
+        {/* CITIZEN LOOKUP SEARCH CARD (NovaBank styling) */}
+        <div className="glass-card rounded-2xl p-6 mb-8 border">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 border-b border-slate-100 pb-4">
             <div>
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
-                💧 Citizen Water Safety Search Hub
+              <h2 className="text-base font-black text-slate-900 flex items-center gap-2">
+                💧 Citizen Water Safety Lookup Hub
               </h2>
-              <p className="text-[11px] text-surface-400">Select any local district or village to fetch its real-time wellness evaluation grade.</p>
+              <p className="text-[11px] text-slate-500">Task 8 & 9: Dynamic region-based safety lookups. Click a location to fetch advisories.</p>
             </div>
             
             <div className="flex gap-2 items-center w-full md:w-auto">
-              <span className="text-xs text-surface-400 font-bold uppercase tracking-wider hidden sm:inline">Lookup:</span>
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider hidden sm:inline">District:</span>
               <select
                 value={selectedVillage}
                 onChange={(e) => setSelectedVillage(e.target.value)}
-                className="input-field !py-2 text-xs font-semibold"
+                className="input-field !py-2 text-xs font-bold"
               >
-                {villagesList.map((v) => (
+                {filteredVillages.map((v) => (
                   <option key={v.name} value={v.name}>📍 District {v.name}</option>
                 ))}
+                {filteredVillages.length === 0 && (
+                  <option value="">No districts inside your scope</option>
+                )}
               </select>
             </div>
           </div>
@@ -152,16 +182,15 @@ export default function DashboardPage() {
           {currentVillageObj ? (
             <div className="grid md:grid-cols-3 gap-6 animate-scale-in">
               {/* Wellness Score & Grade Dial */}
-              <div className="glass-card rounded-xl p-5 border border-white/5 flex flex-col items-center justify-center text-center space-y-3 relative overflow-hidden">
-                <div className={`absolute inset-0 bg-gradient-to-br ${getRiskColor(currentVillageObj.riskLevel)} opacity-5 blur-xl pointer-events-none`} />
-                <div className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl font-black border-2 ${currentGrade.color}`}>
+              <div className="glass-card rounded-xl p-5 border flex flex-col items-center justify-center text-center space-y-3 relative overflow-hidden bg-slate-50/50">
+                <div className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl font-black border-2 shadow-inner ${currentGrade.color}`}>
                   {currentGrade.grade}
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-white text-sm">District Safety Grade: {currentGrade.grade}</h3>
-                  <p className="text-[10px] text-surface-400 mt-0.5">{currentGrade.text}</p>
+                  <h3 className="font-extrabold text-slate-900 text-sm">District Safety: Grade {currentGrade.grade}</h3>
+                  <p className="text-[10px] text-slate-500 mt-0.5">{currentGrade.text}</p>
                 </div>
-                <div className="w-full bg-surface-950 rounded-full h-2 overflow-hidden border border-white/5">
+                <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden border">
                   <div
                     className="h-full rounded-full transition-all duration-500"
                     style={{
@@ -170,24 +199,24 @@ export default function DashboardPage() {
                     }}
                   />
                 </div>
-                <div className="text-xs text-surface-400 font-bold">
-                  Surveillance Index: <span style={{ color: getRiskColor(currentVillageObj.riskLevel) }}>{currentVillageObj.riskScore}% Risk</span>
+                <div className="text-xs text-slate-600 font-bold">
+                  Surveillance Risk: <span style={{ color: getRiskColor(currentVillageObj.riskLevel) }} className="font-black">{currentVillageObj.riskScore}% Score</span>
                 </div>
               </div>
 
-              {/* Live Environmental observations */}
-              <div className="glass-card rounded-xl p-5 border border-white/5 space-y-3">
-                <h4 className="text-xs font-bold text-white uppercase tracking-wider">Toxicity & Case Indicators</h4>
+              {/* Live Toxicity & Caseload observations */}
+              <div className="glass-card rounded-xl p-5 border space-y-3">
+                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Toxicity & Caseload Observations</h4>
                 
                 {activeObservations.length === 0 ? (
-                  <div className="text-xs text-surface-500 flex items-center justify-center h-[120px]">
-                    No contaminants or sickness clusters recorded. Parameters clear.
+                  <div className="text-xs text-slate-400 flex items-center justify-center h-[120px]">
+                    No chemical hazards or clinical spikes recorded.
                   </div>
                 ) : (
                   <ul className="space-y-2 max-h-[150px] overflow-y-auto pr-1">
                     {activeObservations.map((obs, idx) => (
-                      <li key={idx} className="text-xs text-surface-300 flex items-start gap-2 bg-surface-950/30 p-2 rounded border border-white/5">
-                        <span className="text-danger-400">⚠</span>
+                      <li key={idx} className="text-xs text-slate-600 flex items-start gap-2 bg-slate-50 p-2 rounded border border-slate-100">
+                        <span className="text-danger-500 font-bold">⚠</span>
                         <span>{obs}</span>
                       </li>
                     ))}
@@ -195,11 +224,11 @@ export default function DashboardPage() {
                 )}
               </div>
 
-              {/* Dynamic Advisory Advice checklist */}
-              <div className="glass-card rounded-xl p-5 border border-white/5 flex flex-col justify-between">
+              {/* Advisories Checklist */}
+              <div className="glass-card rounded-xl p-5 border flex flex-col justify-between">
                 <div>
-                  <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Citizen Health Directive</h4>
-                  <p className="text-xs text-surface-300 leading-relaxed bg-surface-950/40 p-3 rounded-lg border border-white/5 font-medium">
+                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Surveillance Advisory Directive</h4>
+                  <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-100 font-medium">
                     {advisoryAdvice}
                   </p>
                 </div>
@@ -211,22 +240,22 @@ export default function DashboardPage() {
                   }}
                   className="btn-outline !py-2 text-[10px] font-bold mt-3 w-full text-center"
                 >
-                  {copiedSafetyMsg ? "Copied to Clipboard!" : "✉ Share Safety advisory"}
+                  {copiedSafetyMsg ? "Advisory Copied!" : "✉ Share Wellness Advisor"}
                 </button>
               </div>
             </div>
           ) : (
-            <div className="text-center py-6 text-xs text-surface-500">
-              No village parameters available. Select a location above.
+            <div className="text-center py-6 text-xs text-slate-400">
+              No village parameters inside your assigned scope.
             </div>
           )}
         </div>
 
-        {/* Map */}
+        {/* Dynamic Google Map */}
         <div className="glass-card rounded-2xl p-4 mb-8" id="map-section">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              🗺️ Disease Outbreak Risk Heatmap
+          <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+            <h2 className="text-base font-black text-slate-900 flex items-center gap-2">
+              🗺️ Regional Disease Outbreak Risk Heatmap
             </h2>
             <div className="flex items-center gap-3 text-[10px] sm:text-xs font-bold">
               <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#ef4444]" /> High (≥80)</span>
@@ -234,36 +263,36 @@ export default function DashboardPage() {
               <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#10b981]" /> Low (&lt;50)</span>
             </div>
           </div>
-          <div className="h-[500px] rounded-xl overflow-hidden">
-            <MapView villages={villagesList} />
+          <div className="h-[500px] rounded-xl overflow-hidden shadow-inner border border-slate-200">
+            <MapView villages={filteredVillages} />
           </div>
         </div>
 
         {/* Charts */}
         <div className="grid lg:grid-cols-2 gap-6 mb-8">
           <div className="glass-card rounded-2xl p-5">
-            <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+            <h2 className="text-base font-black text-slate-900 mb-4 flex items-center gap-2">
               📈 Regional Caseload Outbreak Trends
             </h2>
             <CasesChart />
           </div>
           <div className="glass-card rounded-2xl p-5">
-            <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+            <h2 className="text-base font-black text-slate-900 mb-4 flex items-center gap-2">
               📊 Multi-District Risk Score Comparisons
             </h2>
             <RiskBarChart />
           </div>
         </div>
 
-        {/* Recent Reports Table (dynamic log list) */}
+        {/* Recent Reports Table */}
         <div className="glass-card rounded-2xl p-5" id="reports-table">
-          <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-            📋 Live Surveillance Log Feed
+          <h2 className="text-base font-black text-slate-900 mb-4 flex items-center gap-2">
+            📋 Live Surveillance Log Feed (District Scoped)
           </h2>
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-left">
               <thead>
-                <tr className="border-b border-white/5 text-surface-400 uppercase tracking-widest font-semibold text-[10px]">
+                <tr className="border-b border-slate-200 text-slate-400 uppercase tracking-widest font-bold text-[9px]">
                   <th className="py-3 px-3">Village</th>
                   <th className="py-3 px-3 text-center">Fever</th>
                   <th className="py-3 px-3 text-center">Diarrhea</th>
@@ -276,26 +305,26 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {symptomReports.slice(0, 10).map((r) => (
-                  <tr key={r.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
-                    <td className="py-3 px-3 font-bold text-white">{r.village}</td>
+                {filteredReports.slice(0, 10).map((r) => (
+                  <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
+                    <td className="py-3 px-3 font-bold text-slate-800">{r.village}</td>
                     <td className="py-3 px-3 text-center text-sm">{r.fever ? "🌡️" : "—"}</td>
                     <td className="py-3 px-3 text-center text-sm">{r.diarrhea ? "🤢" : "—"}</td>
                     <td className="py-3 px-3 text-center text-sm">{r.vomiting ? "🤮" : "—"}</td>
                     <td className="py-3 px-3">
-                      <span className={r.waterCondition === "contaminated" ? "text-danger-400 font-bold" : "text-primary-400 font-bold"}>
+                      <span className={r.waterCondition === "contaminated" ? "text-danger-500 font-bold" : "text-primary-500 font-bold"}>
                         {r.waterCondition}
                       </span>
                     </td>
-                    <td className="py-3 px-3 text-surface-400">{r.date}</td>
+                    <td className="py-3 px-3 text-slate-500">{r.date}</td>
                     <td className="py-3 px-3 text-center font-black text-sm" style={{ color: getRiskColor(r.riskLevel) }}>
                       {r.riskScore}%
                     </td>
                     <td className="py-3 px-3 text-center">
                       {r.mlPrediction ? (
-                        <span className="text-danger-400 font-extrabold animate-pulse">⚠️ Spike</span>
+                        <span className="text-danger-500 font-extrabold animate-pulse">⚠️ Spike</span>
                       ) : (
-                        <span className="text-surface-500 font-medium">Clear</span>
+                        <span className="text-slate-400 font-bold">Clear</span>
                       )}
                     </td>
                     <td className="py-3 px-3 text-center">
@@ -305,6 +334,13 @@ export default function DashboardPage() {
                     </td>
                   </tr>
                 ))}
+                {filteredReports.length === 0 && (
+                  <tr>
+                    <td colSpan={9} className="text-center py-8 text-xs text-slate-400">
+                      No surveillance logs found for your assigned scope.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

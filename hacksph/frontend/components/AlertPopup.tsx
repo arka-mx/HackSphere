@@ -60,23 +60,23 @@ export default function AlertPopup() {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-danger-400 opacity-75" />
                   <span className="relative inline-flex rounded-full h-3 w-3 bg-danger-500" />
                 </span>
-                <span className="text-xs font-bold uppercase tracking-wider text-danger-400">
+                <span className="text-xs font-bold uppercase tracking-wider text-danger-500">
                   Outbreak Alert
                 </span>
               </div>
-              <p className="text-sm font-semibold text-white">
-                ⚠️ {alert.village}
+              <p className="text-sm font-black text-slate-900">
+                ⚠️ Outbreak Warning: {alert.village}
               </p>
-              <p className="text-xs text-surface-400 mt-0.5">
-                Risk Score: <span className="text-danger-400 font-bold">{alert.risk}%</span>
+              <p className="text-xs text-slate-600 mt-0.5">
+                Surveillance Risk: <span className="text-danger-500 font-extrabold">{alert.risk}% Score</span>
               </p>
-              <p className="text-xs text-surface-500 mt-1">
+              <p className="text-[10px] text-slate-400 mt-1">
                 {new Date(alert.timestamp).toLocaleString()}
               </p>
             </div>
             <button
               onClick={() => dismiss(alert.id)}
-              className="text-surface-500 hover:text-white transition-colors p-1"
+              className="text-slate-400 hover:text-slate-800 transition-colors p-1 font-bold text-sm"
               aria-label="Dismiss alert"
             >
               ✕

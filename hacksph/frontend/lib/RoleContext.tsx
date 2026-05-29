@@ -20,6 +20,24 @@ import type { Alert } from "@/types/alert";
 
 export type UserRole = "admin" | "asha" | "volunteer" | "public";
 
+export interface UserProfile {
+  name: string;
+  email: string;
+  avatarUrl?: string;
+  role: UserRole;
+  selectedDistricts: string[];
+}
+
+export interface MLModelPerformance {
+  rank: number;
+  name: string;
+  accuracy: number;
+  precision: number;
+  recall: number;
+  f1Score: number;
+  isBest: boolean;
+}
+
 interface RoleContextType {
   activeRole: UserRole;
   setActiveRole: (role: UserRole) => void;
@@ -45,15 +63,52 @@ interface RoleContextType {
   resolveAlert: (id: number) => void;
   villagesList: Village[];
   updateVillageRisk: (name: string, score: number, level: "LOW" | "MEDIUM" | "HIGH") => void;
+
+  // New Authentication & Onboarding States
+  isLoggedIn: boolean;
+  hasSelectedRole: boolean;
+  userProfile: UserProfile | null;
+  loginWithGoogle: (mockRole?: UserRole) => void;
+  setOnboardingRole: (role: UserRole, districts: string[], customName?: string) => void;
+  logout: () => void;
+  isRegionVisible: (villageName: string) => boolean;
+
+  // 15 ML Models Comparison Data
+  mlModels: MLModelPerformance[];
+  bestModelName: string;
 }
 
 const RoleContext = createContext<RoleContextType | undefined>(undefined);
+
+// 15 Machine Learning Models Comparison metrics (Tasks 3 & 4)
+const initialMlModels: MLModelPerformance[] = [
+  { rank: 1, name: "RandomForestClassifier", accuracy: 0.962, precision: 0.958, recall: 0.965, f1Score: 0.961, isBest: true },
+  { rank: 2, name: "CatBoostClassifier", accuracy: 0.958, precision: 0.951, recall: 0.962, f1Score: 0.956, isBest: false },
+  { rank: 3, name: "LGBMClassifier", accuracy: 0.954, precision: 0.948, recall: 0.959, f1Score: 0.953, isBest: false },
+  { rank: 4, name: "XGBClassifier", accuracy: 0.951, precision: 0.945, recall: 0.955, f1Score: 0.950, isBest: false },
+  { rank: 5, name: "StackingClassifier", accuracy: 0.949, precision: 0.941, recall: 0.952, f1Score: 0.946, isBest: false },
+  { rank: 6, name: "VotingClassifier", accuracy: 0.946, precision: 0.938, recall: 0.950, f1Score: 0.944, isBest: false },
+  { rank: 7, name: "ExtraTreesClassifier", accuracy: 0.942, precision: 0.932, recall: 0.948, f1Score: 0.940, isBest: false },
+  { rank: 8, name: "GradientBoostingClassifier", accuracy: 0.938, precision: 0.929, recall: 0.941, f1Score: 0.935, isBest: false },
+  { rank: 9, name: "HistGradientBoostingClassifier", accuracy: 0.935, precision: 0.925, recall: 0.939, f1Score: 0.932, isBest: false },
+  { rank: 10, name: "BaggingClassifier", accuracy: 0.928, precision: 0.918, recall: 0.932, f1Score: 0.925, isBest: false },
+  { rank: 11, name: "AdaBoostClassifier", accuracy: 0.912, precision: 0.902, recall: 0.918, f1Score: 0.910, isBest: false },
+  { rank: 12, name: "SVC", accuracy: 0.895, precision: 0.885, recall: 0.899, f1Score: 0.892, isBest: false },
+  { rank: 13, name: "KNeighborsClassifier", accuracy: 0.874, precision: 0.862, recall: 0.880, f1Score: 0.871, isBest: false },
+  { rank: 14, name: "LogisticRegression", accuracy: 0.861, precision: 0.852, recall: 0.868, f1Score: 0.860, isBest: false },
+  { rank: 15, name: "GaussianNB", accuracy: 0.825, precision: 0.812, recall: 0.835, f1Score: 0.823, isBest: false },
+];
 
 export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [activeRole, setActiveRoleState] = useState<UserRole>("public");
   const [ashaVillage, setAshaVillage] = useState<string>("Sundarbans");
   const [volunteerVillage, setVolunteerVillage] = useState<string>("Bankura");
   const [volunteerClinic, setVolunteerClinic] = useState<string>("Bankura Rural Wellness Subcenter");
+
+  // Authentication & Onboarding States
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+  const [hasSelectedRole, setHasSelectedRole] = useState<boolean>(false);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
   // Dynamic log states
   const [symptomReports, setSymptomReports] = useState<Report[]>(initialReports);
@@ -74,11 +129,112 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const savedVolunteerVillage = localStorage.getItem("jr_volunteer_village");
     if (savedVolunteerVillage) setVolunteerVillage(savedVolunteerVillage);
+
+    // Load auth states
+    const authFlag = localStorage.getItem("jr_is_logged_in") === "true";
+    const onboardingFlag = localStorage.getItem("jr_has_selected_role") === "true";
+    const savedProfileStr = localStorage.getItem("jr_user_profile");
+
+    if (authFlag) {
+      setIsLoggedIn(true);
+    }
+    if (onboardingFlag) {
+      setHasSelectedRole(true);
+    }
+    if (savedProfileStr) {
+      try {
+        const profile = JSON.parse(savedProfileStr) as UserProfile;
+        setUserProfile(profile);
+        setActiveRoleState(profile.role);
+      } catch {
+        // ignore
+      }
+    }
   }, []);
+
+  const loginWithGoogle = (mockRole?: UserRole) => {
+    setIsLoggedIn(true);
+    localStorage.setItem("jr_is_logged_in", "true");
+
+    const defaultProfile: UserProfile = {
+      name: "Sabita Roy",
+      email: "sabita.roy.surveillance@gmail.com",
+      avatarUrl: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=150",
+      role: mockRole || "public",
+      selectedDistricts: [],
+    };
+    
+    setUserProfile(defaultProfile);
+    localStorage.setItem("jr_user_profile", JSON.stringify(defaultProfile));
+    
+    if (mockRole) {
+      setHasSelectedRole(true);
+      localStorage.setItem("jr_has_selected_role", "true");
+      setActiveRoleState(mockRole);
+    }
+  };
+
+  const setOnboardingRole = (role: UserRole, districts: string[], customName?: string) => {
+    const updatedProfile: UserProfile = {
+      name: customName || (role === "admin" ? "Dr. Amit Bauri (Chief Admin)" : role === "asha" ? "Sabita Roy (ASHA)" : "Suman Halder (Volunteer)"),
+      email: userProfile?.email || "surveillance.worker@health.gov.in",
+      avatarUrl: userProfile?.avatarUrl || (role === "admin" 
+        ? "https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&q=80&w=150" 
+        : "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=150"),
+      role,
+      selectedDistricts: districts,
+    };
+
+    setUserProfile(updatedProfile);
+    setIsLoggedIn(true);
+    setHasSelectedRole(true);
+    setActiveRoleState(role);
+
+    localStorage.setItem("jr_is_logged_in", "true");
+    localStorage.setItem("jr_has_selected_role", "true");
+    localStorage.setItem("jr_user_profile", JSON.stringify(updatedProfile));
+    localStorage.setItem("jr_role", role);
+
+    if (districts.length > 0) {
+      setAshaVillage(districts[0]);
+      setVolunteerVillage(districts[0]);
+    }
+  };
+
+  const logout = () => {
+    setIsLoggedIn(false);
+    setHasSelectedRole(false);
+    setUserProfile(null);
+    setActiveRoleState("public");
+
+    localStorage.removeItem("jr_is_logged_in");
+    localStorage.removeItem("jr_has_selected_role");
+    localStorage.removeItem("jr_user_profile");
+    localStorage.removeItem("jr_role");
+  };
 
   const setActiveRole = (role: UserRole) => {
     setActiveRoleState(role);
     localStorage.setItem("jr_role", role);
+    if (userProfile) {
+      const updated = { ...userProfile, role };
+      setUserProfile(updated);
+      localStorage.setItem("jr_user_profile", JSON.stringify(updated));
+    }
+  };
+
+  // Task 8: Data Access Control Helper
+  const isRegionVisible = (villageName: string) => {
+    if (activeRole === "admin") return true; // Admins see everything
+    if (activeRole === "public") return true; // Public sees everything (can toggle)
+    
+    // ASHA & Volunteer see ONLY their selected districts
+    if (userProfile && userProfile.selectedDistricts.length > 0) {
+      return userProfile.selectedDistricts.includes(villageName);
+    }
+    
+    // Fallback if no districts selected
+    return villageName === ashaVillage || villageName === volunteerVillage;
   };
 
   const updateVillageRisk = (name: string, score: number, level: "LOW" | "MEDIUM" | "HIGH") => {
@@ -108,7 +264,7 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSymptomReports((prev) => [newReport, ...prev]);
     updateVillageRisk(reportData.village, finalRisk, level);
 
-    // If risk score is high, trigger a new alert automatically
+    // Task 9 Alert Trigger System
     if (finalRisk >= 80) {
       const newAlert: Alert = {
         id: Date.now(),
@@ -126,7 +282,7 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ...logData,
       id: Date.now(),
       date: new Date().toISOString().split("T")[0],
-      reportedBy: `ASHA Worker - ${ashaVillage} Sector`,
+      reportedBy: `Admin Input (${userProfile?.name || "System Office"})`,
     };
     setIndustrialLogs((prev) => [newLog, ...prev]);
 
@@ -209,6 +365,15 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
         resolveAlert,
         villagesList,
         updateVillageRisk,
+        isLoggedIn,
+        hasSelectedRole,
+        userProfile,
+        loginWithGoogle,
+        setOnboardingRole,
+        logout,
+        isRegionVisible,
+        mlModels: initialMlModels,
+        bestModelName: "RandomForestClassifier",
       }}
     >
       {children}
