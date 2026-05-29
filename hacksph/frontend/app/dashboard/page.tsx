@@ -3,7 +3,8 @@
 import dynamic from "next/dynamic";
 import { CasesChart, RiskBarChart } from "@/components/Charts";
 import AlertPopup from "@/components/AlertPopup";
-import { villages, reports, alerts, getRiskBadgeClass, getRiskColor } from "@/lib/mockData";
+import { villages, reports, alerts } from "@/lib/mockData";
+import { getRiskBadgeClass, getRiskColor } from "@/utils/helpers";
 
 const MapView = dynamic(() => import("@/components/MapView"), { ssr: false });
 

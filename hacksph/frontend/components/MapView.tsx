@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { villages, getRiskColor } from "@/lib/mockData";
+import { villages } from "@/lib/mockData";
+import { getRiskColor } from "@/utils/helpers";
 
 export default function MapView() {
   const mapRef = useRef<HTMLDivElement>(null);

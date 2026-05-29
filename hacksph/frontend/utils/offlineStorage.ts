@@ -1,53 +1,54 @@
-// ============================
-// Offline Storage Utility
-// ============================
+import type { ReportInput } from "@/types/report";
 
 const STORAGE_KEY = "jalrakshak_offline_reports";
 
-export interface OfflineReport {
+export interface OfflineReport extends ReportInput {
   id: string;
-  village: string;
-  fever: number;
-  diarrhea: number;
-  vomiting: number;
-  waterCondition: string;
-  date: string;
   timestamp: number;
   synced: boolean;
 }
 
 export function getOfflineReports(): OfflineReport[] {
   if (typeof window === "undefined") return [];
-  const data = localStorage.getItem(STORAGE_KEY);
-  return data ? JSON.parse(data) : [];
+
+  try {
+    const data = localStorage.getItem(STORAGE_KEY);
+    return data ? (JSON.parse(data) as OfflineReport[]) : [];
+  } catch {
+    return [];
+  }
 }
 
-export function saveOfflineReport(report: Omit<OfflineReport, "id" | "timestamp" | "synced">): void {
+export function saveOfflineReport(report: ReportInput): OfflineReport {
   const reports = getOfflineReports();
   const newReport: OfflineReport = {
     ...report,
-    id: `offline_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    id: `offline_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
     timestamp: Date.now(),
     synced: false,
   };
+
   reports.push(newReport);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(reports));
+
+  return newReport;
 }
 
 export function getUnsyncedReports(): OfflineReport[] {
-  return getOfflineReports().filter((r) => !r.synced);
+  return getOfflineReports().filter((report) => !report.synced);
 }
 
 export function markAsSynced(ids: string[]): void {
   const reports = getOfflineReports();
-  const updated = reports.map((r) =>
-    ids.includes(r.id) ? { ...r, synced: true } : r
+  const updated = reports.map((report) =>
+    ids.includes(report.id) ? { ...report, synced: true } : report
   );
+
   localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
 }
 
 export function clearSyncedReports(): void {
-  const reports = getOfflineReports().filter((r) => !r.synced);
+  const reports = getOfflineReports().filter((report) => !report.synced);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(reports));
 }
 
