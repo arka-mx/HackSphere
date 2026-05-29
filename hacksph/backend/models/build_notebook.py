@@ -1,4 +1,7 @@
-{
+import json
+import os
+
+notebook = {
  "cells": [
   {
    "cell_type": "markdown",
@@ -34,15 +37,8 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
-   "metadata": {
-    "execution": {
-     "iopub.execute_input": "2026-05-29T08:11:41.998611Z",
-     "iopub.status.busy": "2026-05-29T08:11:41.998037Z",
-     "iopub.status.idle": "2026-05-29T08:11:45.329420Z",
-     "shell.execute_reply": "2026-05-29T08:11:45.328041Z"
-    }
-   },
+   "execution_count": None,
+   "metadata": {},
    "outputs": [],
    "source": [
     "import os\n",
@@ -89,15 +85,8 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
-   "metadata": {
-    "execution": {
-     "iopub.execute_input": "2026-05-29T08:11:45.379621Z",
-     "iopub.status.busy": "2026-05-29T08:11:45.379043Z",
-     "iopub.status.idle": "2026-05-29T08:11:45.461639Z",
-     "shell.execute_reply": "2026-05-29T08:11:45.460409Z"
-    }
-   },
+   "execution_count": None,
+   "metadata": {},
    "outputs": [],
    "source": [
     "dataset_path = '../data/dataset.csv'\n",
@@ -130,15 +119,8 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
-   "metadata": {
-    "execution": {
-     "iopub.execute_input": "2026-05-29T08:11:45.464701Z",
-     "iopub.status.busy": "2026-05-29T08:11:45.464232Z",
-     "iopub.status.idle": "2026-05-29T08:11:45.966402Z",
-     "shell.execute_reply": "2026-05-29T08:11:45.965601Z"
-    }
-   },
+   "execution_count": None,
+   "metadata": {},
    "outputs": [],
    "source": [
     "# 3.1 — SYMPTOMS DATASET: Missing Value Audit + Imputation (self-contained)\n",
@@ -192,15 +174,8 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
-   "metadata": {
-    "execution": {
-     "iopub.execute_input": "2026-05-29T08:11:45.969902Z",
-     "iopub.status.busy": "2026-05-29T08:11:45.969499Z",
-     "iopub.status.idle": "2026-05-29T08:11:46.202235Z",
-     "shell.execute_reply": "2026-05-29T08:11:46.200060Z"
-    }
-   },
+   "execution_count": None,
+   "metadata": {},
    "outputs": [],
    "source": [
     "# 3.3 — RAINFALL DATASET: Missing Value Audit + Imputation\n",
@@ -249,15 +224,8 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
-   "metadata": {
-    "execution": {
-     "iopub.execute_input": "2026-05-29T08:11:46.207507Z",
-     "iopub.status.busy": "2026-05-29T08:11:46.206539Z",
-     "iopub.status.idle": "2026-05-29T08:11:46.654673Z",
-     "shell.execute_reply": "2026-05-29T08:11:46.653473Z"
-    }
-   },
+   "execution_count": None,
+   "metadata": {},
    "outputs": [],
    "source": [
     "# 3.4 — DISASTERS DATASET: Missing Value Audit + Selective Imputation\n",
@@ -307,15 +275,8 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
-   "metadata": {
-    "execution": {
-     "iopub.execute_input": "2026-05-29T08:11:46.657690Z",
-     "iopub.status.busy": "2026-05-29T08:11:46.657424Z",
-     "iopub.status.idle": "2026-05-29T08:11:46.710249Z",
-     "shell.execute_reply": "2026-05-29T08:11:46.709078Z"
-    }
-   },
+   "execution_count": None,
+   "metadata": {},
    "outputs": [],
    "source": [
     "# 3.5 — MERGED DATASET: Final Null Check\n",
@@ -354,15 +315,8 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
-   "metadata": {
-    "execution": {
-     "iopub.execute_input": "2026-05-29T08:11:46.713018Z",
-     "iopub.status.busy": "2026-05-29T08:11:46.712608Z",
-     "iopub.status.idle": "2026-05-29T08:11:46.850657Z",
-     "shell.execute_reply": "2026-05-29T08:11:46.849514Z"
-    }
-   },
+   "execution_count": None,
+   "metadata": {},
    "outputs": [],
    "source": [
     "# 4.1 Outbreak Class Distribution\n",
@@ -376,15 +330,8 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
-   "metadata": {
-    "execution": {
-     "iopub.execute_input": "2026-05-29T08:11:46.855251Z",
-     "iopub.status.busy": "2026-05-29T08:11:46.854538Z",
-     "iopub.status.idle": "2026-05-29T08:11:47.561918Z",
-     "shell.execute_reply": "2026-05-29T08:11:47.560696Z"
-    }
-   },
+   "execution_count": None,
+   "metadata": {},
    "outputs": [],
    "source": [
     "# 4.2 Feature Correlation Heatmap\n",
@@ -397,15 +344,8 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
-   "metadata": {
-    "execution": {
-     "iopub.execute_input": "2026-05-29T08:11:47.564550Z",
-     "iopub.status.busy": "2026-05-29T08:11:47.564319Z",
-     "iopub.status.idle": "2026-05-29T08:11:47.680757Z",
-     "shell.execute_reply": "2026-05-29T08:11:47.679784Z"
-    }
-   },
+   "execution_count": None,
+   "metadata": {},
    "outputs": [],
    "source": [
     "# 4.3 Rainfall vs Outbreak\n",
@@ -419,15 +359,8 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
-   "metadata": {
-    "execution": {
-     "iopub.execute_input": "2026-05-29T08:11:47.682883Z",
-     "iopub.status.busy": "2026-05-29T08:11:47.682646Z",
-     "iopub.status.idle": "2026-05-29T08:11:47.853575Z",
-     "shell.execute_reply": "2026-05-29T08:11:47.852541Z"
-    }
-   },
+   "execution_count": None,
+   "metadata": {},
    "outputs": [],
    "source": [
     "# 4.4 Year-wise Outbreak Trends\n",
@@ -448,15 +381,8 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
-   "metadata": {
-    "execution": {
-     "iopub.execute_input": "2026-05-29T08:11:47.856158Z",
-     "iopub.status.busy": "2026-05-29T08:11:47.855749Z",
-     "iopub.status.idle": "2026-05-29T08:11:47.879542Z",
-     "shell.execute_reply": "2026-05-29T08:11:47.878147Z"
-    }
-   },
+   "execution_count": None,
+   "metadata": {},
    "outputs": [],
    "source": [
     "feature_cols = [\n",
@@ -492,15 +418,8 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
-   "metadata": {
-    "execution": {
-     "iopub.execute_input": "2026-05-29T08:11:47.883552Z",
-     "iopub.status.busy": "2026-05-29T08:11:47.883125Z",
-     "iopub.status.idle": "2026-05-29T08:12:02.267977Z",
-     "shell.execute_reply": "2026-05-29T08:12:02.267067Z"
-    }
-   },
+   "execution_count": None,
+   "metadata": {},
    "outputs": [],
    "source": [
     "# Define 15 Classifiers\n",
@@ -527,8 +446,7 @@
     "        ('xgb', XGBClassifier(n_estimators=50, max_depth=3, learning_rate=0.1, random_state=42, eval_metric='logloss')),\n",
     "        ('lr', LogisticRegression(max_iter=1000, random_state=42))\n",
     "    ],\n",
-    "    voting='soft'\n",
-    ")\n",
+    "    voting='soft'\n)\n",
     "\n",
     "models[\"Stacking Classifier\"] = StackingClassifier(\n",
     "    estimators=[\n",
@@ -536,8 +454,7 @@
     "        ('lgb', LGBMClassifier(n_estimators=50, max_depth=3, learning_rate=0.1, random_state=42, verbose=-1)),\n",
     "        ('cat', CatBoostClassifier(n_estimators=50, depth=4, learning_rate=0.1, random_seed=42, verbose=0))\n",
     "    ],\n",
-    "    final_estimator=RandomForestClassifier(n_estimators=50, max_depth=3, random_state=42)\n",
-    ")\n",
+    "    final_estimator=RandomForestClassifier(n_estimators=50, max_depth=3, random_state=42)\n)\n",
     "\n",
     "results = []\n",
     "trained_models = {}\n",
@@ -577,15 +494,8 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
-   "metadata": {
-    "execution": {
-     "iopub.execute_input": "2026-05-29T08:12:02.270768Z",
-     "iopub.status.busy": "2026-05-29T08:12:02.270414Z",
-     "iopub.status.idle": "2026-05-29T08:12:02.583906Z",
-     "shell.execute_reply": "2026-05-29T08:12:02.582804Z"
-    }
-   },
+   "execution_count": None,
+   "metadata": {},
    "outputs": [],
    "source": [
     "plt.figure(figsize=(12, 6))\n",
@@ -598,15 +508,8 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
-   "metadata": {
-    "execution": {
-     "iopub.execute_input": "2026-05-29T08:12:02.586807Z",
-     "iopub.status.busy": "2026-05-29T08:12:02.586512Z",
-     "iopub.status.idle": "2026-05-29T08:12:02.592881Z",
-     "shell.execute_reply": "2026-05-29T08:12:02.591970Z"
-    }
-   },
+   "execution_count": None,
+   "metadata": {},
    "outputs": [],
    "source": [
     "best_model_name = df_results.iloc[0]['Model']\n",
@@ -624,15 +527,8 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
-   "metadata": {
-    "execution": {
-     "iopub.execute_input": "2026-05-29T08:12:02.595613Z",
-     "iopub.status.busy": "2026-05-29T08:12:02.595362Z",
-     "iopub.status.idle": "2026-05-29T08:12:02.925795Z",
-     "shell.execute_reply": "2026-05-29T08:12:02.924848Z"
-    }
-   },
+   "execution_count": None,
+   "metadata": {},
    "outputs": [],
    "source": [
     "is_scaled = best_model_name in [\n",
@@ -666,15 +562,8 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
-   "metadata": {
-    "execution": {
-     "iopub.execute_input": "2026-05-29T08:12:02.929313Z",
-     "iopub.status.busy": "2026-05-29T08:12:02.928999Z",
-     "iopub.status.idle": "2026-05-29T08:12:02.938586Z",
-     "shell.execute_reply": "2026-05-29T08:12:02.937440Z"
-    }
-   },
+   "execution_count": None,
+   "metadata": {},
    "outputs": [],
    "source": [
     "model_filepath = '../data/model.pkl'\n",
@@ -684,8 +573,7 @@
     "meta = {\n",
     "    'model_name': best_model_name,\n",
     "    'features': feature_cols,\n",
-    "    'scaled': is_scaled\n",
-    "}\n",
+    "    'scaled': is_scaled\n}\n",
     "\n",
     "with open('../data/model_metadata.pkl', 'wb') as f:\n",
     "    pickle.dump(meta, f)\n",
@@ -701,18 +589,17 @@
    "name": "python3"
   },
   "language_info": {
-   "codemirror_mode": {
-    "name": "ipython",
-    "version": 3
-   },
-   "file_extension": ".py",
-   "mimetype": "text/x-python",
-   "name": "python",
-   "nbconvert_exporter": "python",
-   "pygments_lexer": "ipython3",
-   "version": "3.13.13"
+   "name": "python"
   }
  },
  "nbformat": 4,
  "nbformat_minor": 2
 }
+
+# Write out the notebook file
+models_dir = os.path.dirname(os.path.abspath(__file__))
+dest_path = os.path.join(models_dir, 'model.ipynb')
+with open(dest_path, 'w', encoding='utf-8') as f:
+    json.dump(notebook, f, indent=1)
+    
+print(f"Jupyter Notebook successfully written to {dest_path}")
