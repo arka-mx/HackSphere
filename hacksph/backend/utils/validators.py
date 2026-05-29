@@ -7,11 +7,36 @@ def validate_report_data(data):
     if not data or not isinstance(data, dict):
         return False, "Invalid payload format. Expected JSON object."
         
-    required_fields = ['village', 'fever', 'diarrhea', 'vomiting', 'water_condition']
+    # Standardize alternative field names (JalRakshak integration layer)
+    if 'location' in data and 'village' not in data:
+        data['village'] = data['location']
+    if 'water_contamination' in data and 'water_condition' not in data:
+        data['water_condition'] = data['water_contamination']
+    if 'symptom_severity_score' not in data and 'symptomSeverityScore' in data:
+        data['symptom_severity_score'] = data['symptomSeverityScore']
+    if 'symptom_severity_score' not in data:
+        try:
+            f = float(data.get('fever', 0))
+            d = float(data.get('diarrhea', 0))
+            v = float(data.get('vomiting', 0))
+            data['symptom_severity_score'] = int(f + d + v) if (f + d + v) > 0 else 3
+        except (ValueError, TypeError):
+            data['symptom_severity_score'] = 3
+
+    required_fields = ['village', 'fever', 'diarrhea', 'vomiting', 'water_condition', 'symptom_severity_score']
     for field in required_fields:
         if field not in data or data[field] is None:
             return False, f"Missing required field: '{field}'"
             
+    # Validate numeric fields
+    try:
+        float(data['fever'])
+        float(data['diarrhea'])
+        float(data['vomiting'])
+        float(data['symptom_severity_score'])
+    except (ValueError, TypeError):
+        return False, "Symptom fever, diarrhea, vomiting, and severity fields must be valid numeric values."
+
     village = str(data['village']).strip()
     if not village:
         return False, "Village name cannot be empty."
@@ -68,7 +93,8 @@ def validate_report_data(data):
         'diarrhea': diarrhea,
         'vomiting': vomiting,
         'water_condition': water_condition,
-        'date': date_str
+        'date': date_str,
+        'symptom_severity_score': int(float(data['symptom_severity_score']))
     }
     
     return True, cleaned_data

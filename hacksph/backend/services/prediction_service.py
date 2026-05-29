@@ -1,7 +1,7 @@
 from models.model import predict_outbreak
 from utils.preprocess import clean_water_condition
 
-def calculate_hybrid_risk(fever, diarrhea, vomiting, water_condition, village=None, date=None):
+def calculate_hybrid_risk(fever, diarrhea, vomiting, water_condition, village=None, date=None, symptom_severity_score=None):
     """
     Calculates hybrid risk score using the best-performing ML model and rule-based logic.
     Enriches the input with location and environmental attributes dynamically.
@@ -89,7 +89,8 @@ def calculate_hybrid_risk(fever, diarrhea, vomiting, water_condition, village=No
         temperature = 21.0
         humidity = 65.0
         
-    symptom_severity_score = fever + diarrhea + vomiting
+    if symptom_severity_score is None:
+        symptom_severity_score = fever + diarrhea + vomiting
     
     # ML Prediction using the advanced 19-feature model
     ml_pred = predict_outbreak(

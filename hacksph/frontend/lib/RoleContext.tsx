@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { fetchReports, fetchAlerts } from "@/lib/api";
 import {
   reports as initialReports,
   mockIndustrialLogs as initialIndustrialLogs,
@@ -119,7 +120,7 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [alerts, setAlerts] = useState<Alert[]>(initialAlerts);
   const [villagesList, setVillagesList] = useState<Village[]>(initialVillages);
 
-  // Load from localStorage on client side mount
+  // Load from localStorage and API on client side mount
   useEffect(() => {
     const savedRole = localStorage.getItem("jr_role") as UserRole;
     if (savedRole) {
@@ -151,6 +152,27 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // ignore
       }
     }
+
+    // Dynamic backend data fetching with mock fallbacks
+    fetchReports()
+      .then((data) => {
+        if (data && data.length > 0) {
+          setSymptomReports(data);
+        }
+      })
+      .catch((err) => {
+        console.warn("Could not load reports from Flask backend, using local mock fallbacks:", err.message);
+      });
+
+    fetchAlerts()
+      .then((res) => {
+        if (res && res.alerts) {
+          setAlerts(res.alerts);
+        }
+      })
+      .catch((err) => {
+        console.warn("Could not load alerts from Flask backend, using local mock fallbacks:", err.message);
+      });
   }, []);
 
   const loginWithGoogle = (mockRole?: UserRole) => {
@@ -255,7 +277,52 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
   };
 
-  const addSymptomReport = (reportData: Omit<Report, "id" | "waterNumeric" | "riskScore" | "mlPrediction" | "riskLevel">) => {
+  const addSymptomReport = async (reportData: Omit<Report, "id" | "waterNumeric" | "riskScore" | "mlPrediction" | "riskLevel">) => {
+    try {
+      const { submitReport } = await import("@/lib/api");
+      const result = await submitReport(reportData);
+      if (result && result.report) {
+        const backendReport: Report = {
+          id: result.report.id,
+          village: result.report.village,
+          fever: result.report.fever,
+          diarrhea: result.report.diarrhea,
+          vomiting: result.report.vomiting,
+          waterCondition: result.report.waterCondition,
+          date: result.report.date,
+          waterNumeric: result.report.waterNumeric,
+          riskScore: result.report.riskScore,
+          mlPrediction: result.report.mlPrediction,
+          riskLevel: result.report.riskLevel,
+          symptomSeverityScore: result.report.symptomSeverityScore || result.report.symptom_severity_score,
+        };
+        setSymptomReports((prev) => [backendReport, ...prev]);
+        updateVillageRisk(backendReport.village, backendReport.riskScore, backendReport.riskLevel);
+        
+        if (backendReport.riskScore >= 80) {
+          const newAlert: Alert = {
+            id: Date.now(),
+            village: backendReport.village,
+            risk: backendReport.riskScore,
+            timestamp: new Date().toISOString(),
+            status: "active",
+          };
+          setAlerts((prev) => [newAlert, ...prev]);
+        }
+        return;
+      }
+    } catch (err: any) {
+      console.warn("Flask backend connection failed, activating offline local fallback queue:", err.message);
+      
+      // Store in localStorage offline sync queue
+      if (typeof window !== "undefined") {
+        const offlineQueue = JSON.parse(localStorage.getItem("jr_offline_reports") || "[]");
+        offlineQueue.push(reportData);
+        localStorage.setItem("jr_offline_reports", JSON.stringify(offlineQueue));
+      }
+    }
+
+    // Offline Math Fallback
     const weightedSymptoms =
       reportData.fever * 2 + reportData.diarrhea * 3 + reportData.vomiting * 2 + (reportData.waterCondition === "contaminated" ? 20 : 0);
     const baseRisk = Math.min(weightedSymptoms * 3.7, 70);
@@ -276,7 +343,7 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSymptomReports((prev) => [newReport, ...prev]);
     updateVillageRisk(reportData.village, finalRisk, level);
 
-    // Task 9 Alert Trigger System
+    // Task 9 Alert Trigger System Fallback
     if (finalRisk >= 80) {
       const newAlert: Alert = {
         id: Date.now(),

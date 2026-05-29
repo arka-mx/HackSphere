@@ -25,6 +25,7 @@ export interface ReportInput {
   vomiting: number;
   waterCondition: WaterCondition;
   date: string;
+  symptomSeverityScore?: number;
 }
 
 export interface Report extends ReportInput {

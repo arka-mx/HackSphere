@@ -28,7 +28,11 @@ def create_app():
     app.config.from_object(Config)
     
     # Enable Cross-Origin Resource Sharing (CORS)
-    CORS(app, resources={r"/*": {"origins": "*"}})
+    CORS(app, resources={r"/*": {
+        "origins": "*",
+        "methods": ["GET", "POST"],
+        "allow_headers": ["Content-Type"]
+    }})
     
     # Initialize SQLite database and seed initial village coordinates
     try:
