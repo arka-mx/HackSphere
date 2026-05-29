@@ -21,7 +21,8 @@ def add_report(raw_data):
         vomiting=cleaned_data['vomiting'],
         water_condition=cleaned_data['water_condition'],
         village=cleaned_data['village'],
-        date=cleaned_data['date']
+        date=cleaned_data['date'],
+        symptom_severity_score=cleaned_data.get('symptom_severity_score')
     )
     
     risk_score = pred_res['risk']

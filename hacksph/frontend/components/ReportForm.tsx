@@ -65,6 +65,37 @@ export default function ReportForm() {
   const [productionLevel, setProductionLevel] = useState("medium"); // none, low, medium, high
   const [sanitationIndex, setSanitationIndex] = useState(78); // percentage
 
+  // Offline caching database state (ASHA sync queue)
+  const [offlineCount, setOfflineCount] = useState(0);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const offlineQueue = JSON.parse(localStorage.getItem("jr_offline_reports") || "[]");
+      setOfflineCount(offlineQueue.length);
+    }
+  }, []);
+
+  const handleSyncOfflineData = async () => {
+    if (offlineCount === 0) return;
+    const offlineQueue = JSON.parse(localStorage.getItem("jr_offline_reports") || "[]");
+    
+    setSubmitting(true);
+    try {
+      const { syncReports } = await import("@/lib/api");
+      const result = await syncReports(offlineQueue);
+      if (result && result.reports) {
+        localStorage.removeItem("jr_offline_reports");
+        setOfflineCount(0);
+        alert(`✅ Successfully synchronized ${result.reports.length} offline cached survey sheets to the ML cluster!`);
+        window.location.reload();
+      }
+    } catch (err) {
+      alert("❌ Synchronize failed. The Flask backend is still offline or unreachable.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   useEffect(() => {
     setOnline(navigator.onLine);
     const handleOnline = () => setOnline(true);
@@ -183,6 +214,7 @@ export default function ReportForm() {
       vomiting: hasVomiting,
       waterCondition,
       date: surveyDate,
+      symptomSeverityScore: calculatedAvgSeverity,
     });
 
     setSurveyResult({
@@ -288,16 +320,35 @@ export default function ReportForm() {
         </div>
 
         {/* Status Indicators */}
-        <div className="flex justify-between items-center bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm mb-6 animate-slide-up">
+        <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm mb-6 gap-3 animate-slide-up">
           <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
             <span className={`w-2.5 h-2.5 rounded-full ${online ? "bg-emerald-500" : "bg-warning-500"} animate-pulse`} />
             {online ? "Data Sync Engine Active" : "Offline Caching Database Engaged"}
+            {offlineCount > 0 && (
+              <span className="bg-warning-100 text-warning-700 text-[10px] px-2.5 py-0.5 rounded-full font-bold ml-2">
+                {offlineCount} Cached Reports
+              </span>
+            )}
           </div>
-          <div className="flex gap-2 items-center text-xs font-bold text-slate-500">
-            Scope: 
-            <span className="text-primary-500 uppercase bg-primary-50 px-2 py-0.5 rounded border border-primary-100 font-extrabold">
-              {(activeRole === "asha" || activeRole === "volunteer") ? "ASHA / Volunteer" : activeRole}
-            </span>
+          
+          <div className="flex gap-3 items-center justify-between sm:justify-end text-xs font-bold text-slate-500">
+            {offlineCount > 0 && online && (
+              <button
+                type="button"
+                onClick={handleSyncOfflineData}
+                disabled={submitting}
+                className="px-3 py-1.5 rounded-lg bg-warning-500 hover:bg-warning-600 text-white font-bold text-[10px] transition-all cursor-pointer shadow shadow-warning-500/10 flex items-center gap-1"
+              >
+                🔄 Sync Cached Data
+              </button>
+            )}
+
+            <div className="flex gap-2 items-center">
+              Scope: 
+              <span className="text-primary-500 uppercase bg-primary-50 px-2 py-0.5 rounded border border-primary-100 font-extrabold">
+                {(activeRole === "asha" || activeRole === "volunteer") ? "ASHA / Volunteer" : activeRole}
+              </span>
+            </div>
           </div>
         </div>
 

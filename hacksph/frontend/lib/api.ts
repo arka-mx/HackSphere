@@ -33,6 +33,10 @@ export function syncReports(reports: ReportInput[]) {
   });
 }
 
+export function fetchReports() {
+  return fetchJson<any>("/api/reports");
+}
+
 export function fetchAlerts() {
   return fetchJson<AlertsResponse>("/api/alerts");
 }
