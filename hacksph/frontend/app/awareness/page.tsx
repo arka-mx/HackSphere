@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { awarenessCards, type AwarenessCard } from "@/lib/mockData";
+import { awarenessCards } from "@/lib/mockData";
 
 type Lang = "en" | "hi" | "bn";
 

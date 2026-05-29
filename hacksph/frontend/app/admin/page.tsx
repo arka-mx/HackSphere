@@ -1,6 +1,7 @@
 "use client";
 
-import { villages, reports, alerts, getRiskBadgeClass, getRiskColor } from "@/lib/mockData";
+import { villages, reports, alerts } from "@/lib/mockData";
+import { getRiskBadgeClass, getRiskColor } from "@/utils/helpers";
 
 export default function AdminPage() {
   const totalReports = reports.length;

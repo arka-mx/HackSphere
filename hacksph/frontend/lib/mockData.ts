@@ -2,43 +2,15 @@
 // JalRakshak Health AI – Mock Data
 // ============================
 
-export interface Village {
-  name: string;
-  latitude: number;
-  longitude: number;
-  riskScore: number;
-  riskLevel: "LOW" | "MEDIUM" | "HIGH";
-}
-
-export interface Report {
-  id: number;
-  village: string;
-  fever: number;
-  diarrhea: number;
-  vomiting: number;
-  waterCondition: string;
-  waterNumeric: number;
-  date: string;
-  riskScore: number;
-  mlPrediction: number;
-  riskLevel: "LOW" | "MEDIUM" | "HIGH";
-}
-
-export interface Alert {
-  id: number;
-  village: string;
-  risk: number;
-  timestamp: string;
-  status: "active" | "resolved";
-}
-
-export interface AwarenessCard {
-  id: number;
-  title: { en: string; hi: string; bn: string };
-  body: { en: string; hi: string; bn: string };
-  icon: string;
-  color: string;
-}
+import type { Alert } from "@/types/alert";
+import type {
+  AwarenessCard,
+  CasesOverTimePoint,
+  Report,
+  Village,
+  VillageRiskDatum,
+} from "@/types/report";
+import { getRiskColor } from "@/utils/helpers";
 
 // ---- Village Coordinates (Rural India) ----
 export const villages: Village[] = [
@@ -76,7 +48,7 @@ export const reports: Report[] = [
 ];
 
 // ---- Time Series (Cases Over Time) ----
-export const casesOverTime = [
+export const casesOverTime: CasesOverTimePoint[] = [
   { date: "May 18", cases: 3, highRisk: 1 },
   { date: "May 19", cases: 5, highRisk: 2 },
   { date: "May 20", cases: 8, highRisk: 3 },
@@ -92,15 +64,10 @@ export const casesOverTime = [
 ];
 
 // ---- Risk Per Village (bar chart) ----
-export const riskPerVillage = villages.map((v) => ({
+export const riskPerVillage: VillageRiskDatum[] = villages.map((v) => ({
   village: v.name,
   risk: v.riskScore,
-  fill:
-    v.riskLevel === "HIGH"
-      ? "#ef4444"
-      : v.riskLevel === "MEDIUM"
-      ? "#f59e0b"
-      : "#10b981",
+  fill: getRiskColor(v.riskLevel),
 }));
 
 // ---- Alerts ----
@@ -205,55 +172,3 @@ export const awarenessCards: AwarenessCard[] = [
     color: "from-orange-600/20 to-red-600/20",
   },
 ];
-
-// ---- Helpers ----
-export function getRiskColor(level: string): string {
-  switch (level) {
-    case "HIGH":
-      return "#ef4444";
-    case "MEDIUM":
-      return "#f59e0b";
-    case "LOW":
-      return "#10b981";
-    default:
-      return "#94a3b8";
-  }
-}
-
-export function getRiskBadgeClass(level: string): string {
-  switch (level) {
-    case "HIGH":
-      return "risk-high";
-    case "MEDIUM":
-      return "risk-medium";
-    case "LOW":
-      return "risk-low";
-    default:
-      return "";
-  }
-}
-
-export function calculateRisk(
-  fever: number,
-  diarrhea: number,
-  vomiting: number,
-  waterContaminated: boolean
-): { risk: number; level: "LOW" | "MEDIUM" | "HIGH"; mlPrediction: number } {
-  // Rule-based risk
-  let risk = fever * 2 + diarrhea * 3 + vomiting * 2 + (waterContaminated ? 20 : 0);
-
-  // Normalize to 0-100 scale
-  const baseRisk = Math.min(risk * 3.7, 70);
-
-  // Simple ML simulation
-  const featureSum = fever + diarrhea + vomiting + (waterContaminated ? 1 : 0);
-  const mlPrediction = featureSum >= 3 ? 1 : 0;
-
-  // Hybrid: if ML predicts outbreak, add +30
-  const finalRisk = Math.min(Math.round(baseRisk + (mlPrediction ? 30 : 0)), 100);
-
-  const level: "LOW" | "MEDIUM" | "HIGH" =
-    finalRisk >= 80 ? "HIGH" : finalRisk >= 50 ? "MEDIUM" : "LOW";
-
-  return { risk: finalRisk, level, mlPrediction };
-}

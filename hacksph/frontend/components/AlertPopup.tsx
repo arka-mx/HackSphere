@@ -1,27 +1,40 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { alerts as mockAlerts, type Alert } from "@/lib/mockData";
+import { fetchAlerts } from "@/lib/api";
+import { alerts as mockAlerts } from "@/lib/mockData";
+import type { Alert } from "@/types/alert";
 
 export default function AlertPopup() {
   const [visibleAlerts, setVisibleAlerts] = useState<Alert[]>([]);
   const [dismissed, setDismissed] = useState<Set<number>>(new Set());
 
   useEffect(() => {
-    // Show active alerts one by one with a delay
-    const activeAlerts = mockAlerts.filter((a) => a.status === "active");
-    let index = 0;
+    let cancelled = false;
+    const timeouts: number[] = [];
 
-    const interval = setInterval(() => {
-      if (index < activeAlerts.length) {
-        setVisibleAlerts((prev) => [...prev, activeAlerts[index]]);
-        index++;
-      } else {
-        clearInterval(interval);
-      }
-    }, 2000);
+    const queueAlerts = (alerts: Alert[]) => {
+      const activeAlerts = alerts.filter((alert) => alert.status === "active");
 
-    return () => clearInterval(interval);
+      activeAlerts.forEach((alert, index) => {
+        const timeoutId = window.setTimeout(() => {
+          if (!cancelled) {
+            setVisibleAlerts((prev) => [...prev, alert]);
+          }
+        }, index * 2000);
+
+        timeouts.push(timeoutId);
+      });
+    };
+
+    fetchAlerts()
+      .then((response) => queueAlerts(response.alerts))
+      .catch(() => queueAlerts(mockAlerts));
+
+    return () => {
+      cancelled = true;
+      timeouts.forEach((timeoutId) => window.clearTimeout(timeoutId));
+    };
   }, []);
 
   const dismiss = (id: number) => {
