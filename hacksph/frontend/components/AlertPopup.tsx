@@ -4,10 +4,12 @@ import { useEffect, useState } from "react";
 import { fetchAlerts } from "@/lib/api";
 import { alerts as mockAlerts } from "@/lib/mockData";
 import type { Alert } from "@/types/alert";
+import { useRole } from "@/lib/RoleContext";
 
 export default function AlertPopup() {
   const [visibleAlerts, setVisibleAlerts] = useState<Alert[]>([]);
   const [dismissed, setDismissed] = useState<Set<number>>(new Set());
+  const { isRegionVisible } = useRole();
 
   useEffect(() => {
     let cancelled = false;
@@ -19,7 +21,11 @@ export default function AlertPopup() {
       activeAlerts.forEach((alert, index) => {
         const timeoutId = window.setTimeout(() => {
           if (!cancelled) {
-            setVisibleAlerts((prev) => [...prev, alert]);
+            setVisibleAlerts((prev) => {
+              // Ensure we don't add duplicates
+              if (prev.find(a => a.id === alert.id)) return prev;
+              return [...prev, alert];
+            });
           }
         }, index * 2000);
 
@@ -41,7 +47,9 @@ export default function AlertPopup() {
     setDismissed((prev) => new Set(prev).add(id));
   };
 
-  const activeVisible = visibleAlerts.filter((a) => !dismissed.has(a.id));
+  const activeVisible = visibleAlerts.filter(
+    (a) => !dismissed.has(a.id) && isRegionVisible(a.village)
+  );
 
   if (activeVisible.length === 0) return null;
 

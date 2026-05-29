@@ -71,6 +71,7 @@ interface RoleContextType {
   loginWithGoogle: (mockRole?: UserRole) => void;
   setOnboardingRole: (role: UserRole, districts: string[], customName?: string) => void;
   logout: () => void;
+  updateUserProfile: (updates: Partial<UserProfile>) => void;
   isRegionVisible: (villageName: string) => boolean;
 
   // 15 ML Models Comparison Data
@@ -211,6 +212,17 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem("jr_has_selected_role");
     localStorage.removeItem("jr_user_profile");
     localStorage.removeItem("jr_role");
+  };
+
+  const updateUserProfile = (updates: Partial<UserProfile>) => {
+    if (!userProfile) return;
+    const updated = { ...userProfile, ...updates };
+    setUserProfile(updated);
+    localStorage.setItem("jr_user_profile", JSON.stringify(updated));
+    if (updates.role) {
+      setActiveRoleState(updates.role);
+      localStorage.setItem("jr_role", updates.role);
+    }
   };
 
   const setActiveRole = (role: UserRole) => {
@@ -371,6 +383,7 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loginWithGoogle,
         setOnboardingRole,
         logout,
+        updateUserProfile,
         isRegionVisible,
         mlModels: initialMlModels,
         bestModelName: "RandomForestClassifier",

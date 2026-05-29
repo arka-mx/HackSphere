@@ -264,7 +264,7 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="h-[500px] rounded-xl overflow-hidden shadow-inner border border-slate-200">
-            <MapView villages={filteredVillages} />
+            <MapView villages={filteredVillages} selectedVillage={selectedVillage} />
           </div>
         </div>
 

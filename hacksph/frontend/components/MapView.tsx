@@ -7,6 +7,7 @@ import type { Village } from "@/types/report";
 
 interface MapViewProps {
   villages?: Village[];
+  selectedVillage?: string;
 }
 
 // Google Maps Slate/Light-Grey Minimalist Theme Styles Array
@@ -61,13 +62,22 @@ const gmapsLightTheme = [
   }
 ];
 
-export default function MapView({ villages = defaultVillages }: MapViewProps) {
+export default function MapView({ villages = defaultVillages, selectedVillage }: MapViewProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const [scriptLoaded, setScriptLoaded] = useState(false);
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
   const circlesRef = useRef<any[]>([]);
   const activeInfoWindowRef = useRef<any>(null);
+
+  // Track village elements for dynamic interaction (pan, zoom, infoWindow)
+  const villageElementsRef = useRef<{
+    [name: string]: {
+      marker: any;
+      infoWindow: any;
+      center: { lat: number; lng: number };
+    };
+  }>({});
 
   // Load Google Maps Script Tag Dynamically
   useEffect(() => {
@@ -126,11 +136,16 @@ export default function MapView({ villages = defaultVillages }: MapViewProps) {
     circlesRef.current.forEach((c) => c.setMap(null));
     markersRef.current = [];
     circlesRef.current = [];
+    villageElementsRef.current = {};
+
+    // Create bounds to fit if ASHA workers have filtered districts
+    const bounds = new google.maps.LatLngBounds();
 
     // Draw village hotspots
     villages.forEach((village) => {
       const color = getRiskColor(village.riskLevel);
       const center = { lat: village.latitude, lng: village.longitude };
+      bounds.extend(center);
 
       // 1. Primary Risk Hotspot Circle Overlay
       const radiusMeters = village.riskLevel === "HIGH" ? 12000 : village.riskLevel === "MEDIUM" ? 8000 : 5000;
@@ -203,6 +218,13 @@ export default function MapView({ villages = defaultVillages }: MapViewProps) {
         ariaLabel: village.name,
       });
 
+      // Save references for dynamic pan/zoom
+      villageElementsRef.current[village.name.toLowerCase()] = {
+        marker,
+        infoWindow,
+        center,
+      };
+
       // Bind click triggers to both marker and circle
       const handleTriggerClick = () => {
         if (activeInfoWindowRef.current) {
@@ -219,7 +241,45 @@ export default function MapView({ villages = defaultVillages }: MapViewProps) {
       circle.addListener("click", handleTriggerClick);
     });
 
+    // Fit map bounds / Zoom dynamically based on ASHA worker's active villages scope
+    if (villages.length > 0) {
+      if (villages.length === 1) {
+        map.setCenter({ lat: villages[0].latitude, lng: villages[0].longitude });
+        map.setZoom(11);
+      } else if (villages.length < defaultVillages.length) {
+        map.fitBounds(bounds);
+      } else {
+        map.setCenter({ lat: 23.5, lng: 87.5 });
+        map.setZoom(7.5);
+      }
+    }
+
   }, [scriptLoaded, villages]);
+
+  // Handle selectedVillage changes from the dropdown (Pan & Zoom in close)
+  useEffect(() => {
+    if (!scriptLoaded || !mapInstanceRef.current || !selectedVillage) return;
+
+    const matched = villageElementsRef.current[selectedVillage.toLowerCase()];
+    if (matched) {
+      const { marker, infoWindow, center } = matched;
+      const map = mapInstanceRef.current;
+
+      // Smoothly pan and zoom into the selected location
+      map.panTo(center);
+      map.setZoom(11.5);
+
+      // Programmatically open its infoWindow
+      if (activeInfoWindowRef.current) {
+        activeInfoWindowRef.current.close();
+      }
+      infoWindow.open({
+        anchor: marker,
+        map,
+      });
+      activeInfoWindowRef.current = infoWindow;
+    }
+  }, [selectedVillage, scriptLoaded]);
 
   // Clean up on unmount
   useEffect(() => {
@@ -228,6 +288,7 @@ export default function MapView({ villages = defaultVillages }: MapViewProps) {
       circlesRef.current.forEach((c) => c.setMap(null));
       if (activeInfoWindowRef.current) activeInfoWindowRef.current.close();
       mapInstanceRef.current = null;
+      villageElementsRef.current = {};
     };
   }, []);
 

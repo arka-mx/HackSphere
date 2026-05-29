@@ -41,6 +41,19 @@ export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { activeRole, userProfile, logout } = useRole();
 
+  const visibleLinks = navLinks.filter((link) => {
+    if (activeRole === "admin") {
+      return true;
+    }
+    if (activeRole === "asha" || activeRole === "volunteer") {
+      return link.href !== "/admin";
+    }
+    if (activeRole === "public") {
+      return link.href !== "/admin" && link.href !== "/report";
+    }
+    return true;
+  });
+
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 glass" id="main-navbar">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -63,7 +76,7 @@ export default function Navbar() {
 
           {/* Desktop Navigation Links */}
           <div className="hidden md:flex items-center gap-1">
-            {navLinks.map((link) => {
+            {visibleLinks.map((link) => {
               const isActive = pathname === link.href;
               const { label, icon } = getNavLinkConfig(link.href, activeRole);
               return (
@@ -90,28 +103,30 @@ export default function Navbar() {
           <div className="hidden md:flex items-center gap-4">
             {userProfile ? (
               <div className="flex items-center gap-3">
-                {/* Profile Meta Details */}
-                <div className="text-right">
-                  <span className="text-xs font-bold text-slate-800 block leading-tight">{userProfile.name}</span>
-                  <div className="flex gap-1 items-center justify-end mt-0.5">
-                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded capitalize leading-none
-                      ${
-                        activeRole === "admin" ? "bg-danger-50 text-danger-500 border border-danger-100" :
-                        (activeRole === "asha" || activeRole === "volunteer") ? "bg-emerald-50 text-emerald-500 border border-emerald-100" :
-                        "bg-indigo-50 text-indigo-500 border border-indigo-100"
-                      }`}
-                    >
-                      {(activeRole === "asha" || activeRole === "volunteer") ? "ASHA / Volunteer" : activeRole}
-                    </span>
+                <Link href="/profile" className="flex items-center gap-3 hover:opacity-85 transition-all" title="Edit Profile">
+                  {/* Profile Meta Details */}
+                  <div className="text-right">
+                    <span className="text-xs font-bold text-slate-800 block leading-tight">{userProfile.name}</span>
+                    <div className="flex gap-1 items-center justify-end mt-0.5">
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded capitalize leading-none
+                        ${
+                          activeRole === "admin" ? "bg-danger-50 text-danger-500 border border-danger-100" :
+                          (activeRole === "asha" || activeRole === "volunteer") ? "bg-emerald-50 text-emerald-500 border border-emerald-100" :
+                          "bg-indigo-50 text-indigo-500 border border-indigo-100"
+                        }`}
+                      >
+                        {(activeRole === "asha" || activeRole === "volunteer") ? "ASHA / Volunteer" : activeRole}
+                      </span>
+                    </div>
                   </div>
-                </div>
-                
-                {/* Google Avatar Image */}
-                <img
-                  src={userProfile.avatarUrl}
-                  alt={userProfile.name}
-                  className="w-9 h-9 rounded-full object-cover border border-slate-200"
-                />
+                  
+                  {/* Google Avatar Image */}
+                  <img
+                    src={userProfile.avatarUrl}
+                    alt={userProfile.name}
+                    className="w-9 h-9 rounded-full object-cover border border-slate-200"
+                  />
+                </Link>
 
                 {/* Sign Out Button */}
                 <button
@@ -148,7 +163,7 @@ export default function Navbar() {
         {/* Mobile Menu Dropdown */}
         <div className={`md:hidden overflow-hidden transition-all duration-300 ${mobileOpen ? "max-h-[300px] pb-4" : "max-h-0"}`}>
           <div className="flex flex-col gap-1 pt-2 border-t border-slate-100">
-            {navLinks.map((link) => {
+            {visibleLinks.map((link) => {
               const isActive = pathname === link.href;
               const { label, icon } = getNavLinkConfig(link.href, activeRole);
               return (

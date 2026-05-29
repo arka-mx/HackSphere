@@ -15,16 +15,6 @@ export default function LoginScreen() {
     setLoading(false);
   };
 
-  const handleBypass = (role: "admin" | "asha" | "volunteer") => {
-    if (role === "admin") {
-      setOnboardingRole("admin", [], "Dr. Amit Bauri (Chief Admin)");
-    } else if (role === "asha") {
-      setOnboardingRole("asha", ["Sundarbans", "Malda"], "Anjali Sen (ASHA worker)");
-    } else {
-      setOnboardingRole("volunteer", ["Bankura"], "Dr. Biplab Ghosh (Volunteer)");
-    }
-  };
-
   const handlePublicGuest = () => {
     setOnboardingRole("public", [], "Public Citizen");
   };
@@ -76,31 +66,6 @@ export default function LoginScreen() {
           >
             👥 Continue as Public Guest (Browse Map)
           </button>
-        </div>
-
-        {/* Divider */}
-        <div className="relative flex py-2 items-center">
-          <div className="flex-grow border-t border-slate-200"></div>
-          <span className="flex-shrink mx-4 text-[10px] text-slate-400 font-bold uppercase tracking-wider">Developer Scope Bypasses</span>
-          <div className="flex-grow border-t border-slate-200"></div>
-        </div>
-
-        {/* Quick Role Selectors for Evaluators */}
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { label: "ASHA", role: "asha", icon: "👩‍⚕️" },
-            { label: "Clinic", role: "volunteer", icon: "🏥" },
-            { label: "Admin", role: "admin", icon: "👑" },
-          ].map((item) => (
-            <button
-              key={item.role}
-              onClick={() => handleBypass(item.role as any)}
-              className="p-2.5 rounded-lg border border-slate-200 hover:border-primary-500/50 hover:bg-primary-50/50 transition-all text-[10px] font-bold text-slate-600 flex flex-col items-center gap-1 cursor-pointer"
-            >
-              <span className="text-sm">{item.icon}</span>
-              {item.label}
-            </button>
-          ))}
         </div>
       </div>
     </div>
