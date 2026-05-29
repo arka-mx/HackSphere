@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import Navbar from "@/components/Navbar";
+import { RoleProvider } from "@/lib/RoleContext";
+import AuthWrapper from "@/components/AuthWrapper";
 
 export const metadata: Metadata = {
   title: "JalRakshak Health AI – Smart Health Surveillance & Disease Early Warning",
@@ -22,10 +23,13 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="bg-surface-950 text-surface-100 min-h-screen">
-        <Navbar />
-        <main className="pt-16">{children}</main>
+      <body className="bg-surface-50 text-surface-900 min-h-screen">
+        <RoleProvider>
+          <AuthWrapper>{children}</AuthWrapper>
+        </RoleProvider>
       </body>
     </html>
   );
 }
+
+

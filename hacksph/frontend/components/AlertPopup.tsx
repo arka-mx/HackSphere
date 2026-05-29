@@ -4,10 +4,12 @@ import { useEffect, useState } from "react";
 import { fetchAlerts } from "@/lib/api";
 import { alerts as mockAlerts } from "@/lib/mockData";
 import type { Alert } from "@/types/alert";
+import { useRole } from "@/lib/RoleContext";
 
 export default function AlertPopup() {
   const [visibleAlerts, setVisibleAlerts] = useState<Alert[]>([]);
   const [dismissed, setDismissed] = useState<Set<number>>(new Set());
+  const { isRegionVisible } = useRole();
 
   useEffect(() => {
     let cancelled = false;
@@ -19,7 +21,11 @@ export default function AlertPopup() {
       activeAlerts.forEach((alert, index) => {
         const timeoutId = window.setTimeout(() => {
           if (!cancelled) {
-            setVisibleAlerts((prev) => [...prev, alert]);
+            setVisibleAlerts((prev) => {
+              // Ensure we don't add duplicates
+              if (prev.find(a => a.id === alert.id)) return prev;
+              return [...prev, alert];
+            });
           }
         }, index * 2000);
 
@@ -41,7 +47,9 @@ export default function AlertPopup() {
     setDismissed((prev) => new Set(prev).add(id));
   };
 
-  const activeVisible = visibleAlerts.filter((a) => !dismissed.has(a.id));
+  const activeVisible = visibleAlerts.filter(
+    (a) => !dismissed.has(a.id) && isRegionVisible(a.village)
+  );
 
   if (activeVisible.length === 0) return null;
 
@@ -60,23 +68,23 @@ export default function AlertPopup() {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-danger-400 opacity-75" />
                   <span className="relative inline-flex rounded-full h-3 w-3 bg-danger-500" />
                 </span>
-                <span className="text-xs font-bold uppercase tracking-wider text-danger-400">
+                <span className="text-xs font-bold uppercase tracking-wider text-danger-500">
                   Outbreak Alert
                 </span>
               </div>
-              <p className="text-sm font-semibold text-white">
-                ⚠️ {alert.village}
+              <p className="text-sm font-black text-slate-900">
+                ⚠️ Outbreak Warning: {alert.village}
               </p>
-              <p className="text-xs text-surface-400 mt-0.5">
-                Risk Score: <span className="text-danger-400 font-bold">{alert.risk}%</span>
+              <p className="text-xs text-slate-600 mt-0.5">
+                Surveillance Risk: <span className="text-danger-500 font-extrabold">{alert.risk}% Score</span>
               </p>
-              <p className="text-xs text-surface-500 mt-1">
+              <p className="text-[10px] text-slate-400 mt-1">
                 {new Date(alert.timestamp).toLocaleString()}
               </p>
             </div>
             <button
               onClick={() => dismiss(alert.id)}
-              className="text-surface-500 hover:text-white transition-colors p-1"
+              className="text-slate-400 hover:text-slate-800 transition-colors p-1 font-bold text-sm"
               aria-label="Dismiss alert"
             >
               ✕
