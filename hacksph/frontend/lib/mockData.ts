@@ -9,6 +9,9 @@ import type {
   Report,
   Village,
   VillageRiskDatum,
+  IndustrialContaminationLog,
+  ClinicalCaseRecord,
+  PublicComplaint,
 } from "@/types/report";
 import { getRiskColor } from "@/utils/helpers";
 
@@ -172,3 +175,143 @@ export const awarenessCards: AwarenessCard[] = [
     color: "from-orange-600/20 to-red-600/20",
   },
 ];
+
+// ---- Mock Industrial Contamination Logs (ASHA Worker) ----
+export const mockIndustrialLogs: IndustrialContaminationLog[] = [
+  {
+    id: 1,
+    village: "Sundarbans",
+    date: "2026-05-26",
+    effluentLevel: "high",
+    waterColor: "Dark Brownish-Black",
+    turbidity: 45,
+    tds: 920,
+    ph: 5.4,
+    chemicals: ["Arsenic", "Lead"],
+    reportedBy: "ASHA Worker - Anjali Sen",
+  },
+  {
+    id: 2,
+    village: "Bankura",
+    date: "2026-05-27",
+    effluentLevel: "high",
+    waterColor: "Yellowish-Red Rust",
+    turbidity: 60,
+    tds: 1150,
+    ph: 4.8,
+    chemicals: ["Iron", "Lead", "Fluoride"],
+    reportedBy: "ASHA Worker - Priya Mahato",
+  },
+  {
+    id: 3,
+    village: "Malda",
+    date: "2026-05-28",
+    effluentLevel: "mild",
+    waterColor: "Light Greenish",
+    turbidity: 18,
+    tds: 480,
+    ph: 6.8,
+    chemicals: ["Nitrates"],
+    reportedBy: "ASHA Worker - Sabina Khatun",
+  },
+  {
+    id: 4,
+    village: "Durgapur",
+    date: "2026-05-28",
+    effluentLevel: "mild",
+    waterColor: "Oily Grey",
+    turbidity: 25,
+    tds: 620,
+    ph: 6.2,
+    chemicals: ["Chromium", "Fluoride"],
+    reportedBy: "ASHA Worker - Rekha Bauri",
+  },
+];
+
+// ---- Mock Clinical Case Records (Volunteers / Clinics) ----
+export const mockClinicalRecords: ClinicalCaseRecord[] = [
+  {
+    id: 1,
+    village: "Sundarbans",
+    date: "2026-05-26",
+    clinicName: "Sundarbans Block A Health Clinic",
+    choleraCases: 14,
+    diarrheaCases: 38,
+    typhoidCases: 8,
+    malariaCases: 4,
+    bedOccupancy: 85,
+    medicineStock: "low",
+    reportedBy: "Dr. Biplab Ghosh",
+  },
+  {
+    id: 2,
+    village: "Bankura",
+    date: "2026-05-27",
+    clinicName: "Bankura Rural Wellness Subcenter",
+    choleraCases: 22,
+    diarrheaCases: 45,
+    typhoidCases: 12,
+    malariaCases: 6,
+    bedOccupancy: 92,
+    medicineStock: "critical",
+    reportedBy: "Nurse Anita Soren",
+  },
+  {
+    id: 3,
+    village: "Purulia",
+    date: "2026-05-27",
+    clinicName: "Purulia Community Medical Camp",
+    choleraCases: 18,
+    diarrheaCases: 29,
+    typhoidCases: 9,
+    malariaCases: 3,
+    bedOccupancy: 78,
+    medicineStock: "adequate",
+    reportedBy: "Volunteer - Rahul Mahato",
+  },
+  {
+    id: 4,
+    village: "Diamond Harbour",
+    date: "2026-05-28",
+    clinicName: "Diamond Harbour Health Outreach",
+    choleraCases: 9,
+    diarrheaCases: 22,
+    typhoidCases: 5,
+    malariaCases: 2,
+    bedOccupancy: 60,
+    medicineStock: "adequate",
+    reportedBy: "Dr. S. K. Halder",
+  },
+];
+
+// ---- Mock Public Complaints (Normal Citizens) ----
+export const mockPublicComplaints: PublicComplaint[] = [
+  {
+    id: 1,
+    village: "Kalna",
+    date: "2026-05-28",
+    complainant: "Subhash Chandra Ray",
+    issueType: "smell",
+    details: "The drinking water from the public tubewell has a rotten egg smell. Two children had minor stomach upset yesterday.",
+    resolved: false,
+  },
+  {
+    id: 2,
+    village: "Bankura",
+    date: "2026-05-28",
+    complainant: "Mitu Roy",
+    issueType: "color",
+    details: "Water from the well is looking reddish-yellow today. Nearby pond has some red foam floating near the shore.",
+    resolved: false,
+  },
+  {
+    id: 3,
+    village: "Berhampore",
+    date: "2026-05-29",
+    complainant: "Amit Mondal",
+    issueType: "sickness",
+    details: "Many households are reporting stomach pains and vomiting after drinking tap water from municipal storage.",
+    resolved: false,
+  },
+];
+

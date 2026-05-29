@@ -1,10 +1,15 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { villages } from "@/lib/mockData";
+import { villages as defaultVillages } from "@/lib/mockData";
 import { getRiskColor } from "@/utils/helpers";
+import type { Village } from "@/types/report";
 
-export default function MapView() {
+interface MapViewProps {
+  villages?: Village[];
+}
+
+export default function MapView({ villages = defaultVillages }: MapViewProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
 
@@ -116,7 +121,7 @@ export default function MapView() {
         mapInstanceRef.current = null;
       }
     };
-  }, []);
+  }, [villages]);
 
   return (
     <>

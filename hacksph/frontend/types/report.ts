@@ -60,3 +60,41 @@ export interface AwarenessCard {
   icon: string;
   color: string;
 }
+
+export interface IndustrialContaminationLog {
+  id: number;
+  village: string;
+  date: string;
+  effluentLevel: "none" | "mild" | "high";
+  waterColor: string;
+  turbidity: number;
+  tds: number;
+  ph: number;
+  chemicals: string[];
+  reportedBy: string;
+}
+
+export interface ClinicalCaseRecord {
+  id: number;
+  village: string;
+  date: string;
+  clinicName: string;
+  choleraCases: number;
+  diarrheaCases: number;
+  typhoidCases: number;
+  malariaCases: number;
+  bedOccupancy: number;
+  medicineStock: "adequate" | "low" | "critical";
+  reportedBy: string;
+}
+
+export interface PublicComplaint {
+  id: number;
+  village: string;
+  date: string;
+  complainant: string;
+  issueType: "smell" | "color" | "sickness" | "other";
+  details: string;
+  resolved: boolean;
+}
+

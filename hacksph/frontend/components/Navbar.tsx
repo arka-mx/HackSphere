@@ -3,18 +3,45 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useRole } from "@/lib/RoleContext";
 
 const navLinks = [
-  { href: "/", label: "Home", icon: "🏠" },
-  { href: "/report", label: "Report", icon: "📋" },
-  { href: "/dashboard", label: "Dashboard", icon: "📊" },
-  { href: "/admin", label: "Admin", icon: "🛡️" },
-  { href: "/awareness", label: "Awareness", icon: "💡" },
+  { href: "/" },
+  { href: "/report" },
+  { href: "/dashboard" },
+  { href: "/admin" },
+  { href: "/awareness" },
 ];
+
+function getNavLinkConfig(href: string, role: string) {
+  switch (href) {
+    case "/":
+      return { label: "Home", icon: "🏠" };
+    case "/report":
+      if (role === "admin") return { label: "Officer Submissions", icon: "🛡️" };
+      if (role === "asha") return { label: "ASHA Field Surveys", icon: "📋" };
+      if (role === "volunteer") return { label: "Clinical Case Logs", icon: "🏥" };
+      return { label: "Community Complaint", icon: "👥" };
+    case "/dashboard":
+      if (role === "admin") return { label: "Command Center Map", icon: "🗺️" };
+      if (role === "asha") return { label: "Contamination Heatmap", icon: "🔥" };
+      if (role === "volunteer") return { label: "Clinic Outreach Map", icon: "📊" };
+      return { label: "Safe Districts Map", icon: "💧" };
+    case "/admin":
+      if (role === "admin") return { label: "Control Panel", icon: "🛡️" };
+      return { label: "Officer Portal", icon: "🔒" };
+    case "/awareness":
+      if (role === "public") return { label: "Water Safety Guides", icon: "💡" };
+      return { label: "Hygiene Awareness", icon: "💡" };
+    default:
+      return { label: "", icon: "" };
+  }
+}
 
 export default function Navbar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { activeRole } = useRole();
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 glass" id="main-navbar">
@@ -40,11 +67,12 @@ export default function Navbar() {
           <div className="hidden md:flex items-center gap-1">
             {navLinks.map((link) => {
               const isActive = pathname === link.href;
+              const { label, icon } = getNavLinkConfig(link.href, activeRole);
               return (
                 <Link
                   key={link.href}
                   href={link.href}
-                  id={`nav-${link.label.toLowerCase()}`}
+                  id={`nav-${label.toLowerCase().replace(/\s+/g, "-")}`}
                   className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 flex items-center gap-2
                     ${
                       isActive
@@ -53,8 +81,8 @@ export default function Navbar() {
                     }
                   `}
                 >
-                  <span className="text-base">{link.icon}</span>
-                  {link.label}
+                  <span className="text-base">{icon}</span>
+                  {label}
                   {isActive && (
                     <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-primary-500 rounded-full" />
                   )}
@@ -66,8 +94,8 @@ export default function Navbar() {
           {/* Status Indicator */}
           <div className="hidden md:flex items-center gap-3">
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full glass-light text-xs">
-              <span className="w-2 h-2 rounded-full bg-primary-500 animate-pulse" />
-              <span className="text-surface-300">System Active</span>
+              <span className="w-2.5 h-2.5 rounded-full bg-primary-500 animate-pulse" />
+              <span className="text-surface-300 capitalize">{activeRole} Mode Active</span>
             </div>
           </div>
 
@@ -107,6 +135,7 @@ export default function Navbar() {
           <div className="flex flex-col gap-1 pt-2 border-t border-white/5">
             {navLinks.map((link) => {
               const isActive = pathname === link.href;
+              const { label, icon } = getNavLinkConfig(link.href, activeRole);
               return (
                 <Link
                   key={link.href}
@@ -120,8 +149,8 @@ export default function Navbar() {
                     }
                   `}
                 >
-                  <span className="text-lg">{link.icon}</span>
-                  {link.label}
+                  <span className="text-lg">{icon}</span>
+                  {label}
                 </Link>
               );
             })}
