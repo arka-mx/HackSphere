@@ -32,5 +32,32 @@ db_store/database.db
 .env
 db_store/firebase_credentials.json
 
-# Jupyter Notebook checkpoints
+# Jupyter Notebook checkpoints & outputs
 .ipynb_checkpoints/
+# Strip notebook outputs before commit (use: jupyter nbconvert --ClearOutputPreprocessor.enabled=True)
+
+# ──────────────────────────────────────────────
+# ML Artifacts — generated at runtime, not committed
+# ──────────────────────────────────────────────
+
+# Trained model binaries & scalers (large, reproducible via train_model.py)
+data/model.pkl
+data/scaler.pkl
+data/model_metadata.pkl
+data/leaderboard.csv
+
+# Generated plots (PNGs produced by training pipeline)
+data/plots/
+*.png
+
+# Merged/processed dataset (regenerated from raw sources)
+data/dataset.csv
+
+# CatBoost runtime training logs
+catboost_info/
+
+# Raw Kaggle datasets (large CSVs/XLSXs — download via Kaggle API)
+data/raw/
+
+# Smoke / debug test scripts
+test_backend.py

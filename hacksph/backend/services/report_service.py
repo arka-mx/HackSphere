@@ -19,7 +19,9 @@ def add_report(raw_data):
         fever=cleaned_data['fever'],
         diarrhea=cleaned_data['diarrhea'],
         vomiting=cleaned_data['vomiting'],
-        water_condition=cleaned_data['water_condition']
+        water_condition=cleaned_data['water_condition'],
+        village=cleaned_data['village'],
+        date=cleaned_data['date']
     )
     
     risk_score = pred_res['risk']
