@@ -3,6 +3,11 @@
 import { useState } from "react";
 import { useRole } from "@/lib/RoleContext";
 import { getRiskBadgeClass, getRiskColor } from "@/utils/helpers";
+import dynamic from "next/dynamic";
+import { CasesChart } from "@/components/Charts";
+
+const MapView = dynamic(() => import("@/components/MapView"), { ssr: false });
+
 
 type TabType = "symptoms" | "industrial" | "clinical" | "complaints" | "ml-models";
 
@@ -305,6 +310,128 @@ export default function AdminPage() {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+
+        {/* SECTION: Real-time Disease Monitoring Dashboard (Heat Maps + Spread Trends) */}
+        <div className="grid lg:grid-cols-3 gap-6 mb-8">
+          {/* Dynamic Map (2 cols) */}
+          <div className="lg:col-span-2 glass-card rounded-2xl p-5 border flex flex-col justify-between" id="admin-map-section">
+            <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+              <h2 className="text-base font-black text-slate-900 flex items-center gap-2">
+                🗺️ Real-Time Outbreak Heat Map (State-Wide)
+              </h2>
+              <span className="text-[10px] uppercase font-bold text-slate-400">Live Hotspot Overlays</span>
+            </div>
+            <div className="h-[380px] rounded-xl overflow-hidden border border-slate-200">
+              <MapView villages={villagesList} />
+            </div>
+          </div>
+
+          {/* Spread Trends Chart (1 col) */}
+          <div className="glass-card rounded-2xl p-5 border flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+              <h2 className="text-base font-black text-slate-900 flex items-center gap-2">
+                📈 Outbreak Spread Trends
+              </h2>
+              <span className="text-[10px] uppercase font-bold text-slate-400">Timeline Analysis</span>
+            </div>
+            <div className="h-[380px] flex items-center justify-center relative overflow-hidden bg-slate-50/20 p-2 rounded-xl border border-slate-100 shadow-inner">
+              <CasesChart />
+            </div>
+          </div>
+        </div>
+
+        {/* SECTION: Dynamic Resource Allocation Console */}
+        <div className="glass-card rounded-2xl p-6 mb-8 border border-primary-200 bg-primary-50/5 relative overflow-hidden">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 border-b border-slate-100 pb-4">
+            <div>
+              <h2 className="text-base font-black text-slate-900 flex items-center gap-2">
+                📦 AI-Driven Dynamic Resource Allocation Control
+              </h2>
+              <p className="text-[11px] text-slate-500">
+                Pattern Analysis Engine calculates regional needs and triggers automatic medicine refilling, ORS dispatch, and sanitization squad directives.
+              </p>
+            </div>
+            <span className="text-[10px] font-bold bg-primary-500 text-white px-2.5 py-1.5 rounded-lg shadow-sm font-mono animate-pulse">
+              OPTIMIZATION ACTIVE
+            </span>
+          </div>
+
+          {/* Grid of Resource Directives */}
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {villagesList.map((village) => {
+              const matchedReports = symptomReports.filter((r) => r.village === village.name);
+              const matchedIndustrial = industrialLogs.filter((log) => log.village === village.name);
+              const matchedClinical = clinicalRecords.filter((rec) => rec.village === village.name);
+
+              const hasContamination = matchedReports.some((r) => r.waterCondition === "contaminated") || matchedIndustrial.some((log) => log.effluentLevel === "high");
+              const totalCholera = matchedClinical.reduce((sum, rec) => sum + rec.choleraCases, 0);
+              const totalDiarrhea = matchedClinical.reduce((sum, rec) => sum + rec.diarrheaCases, 0);
+              const highBedOccupancy = matchedClinical.some((rec) => rec.bedOccupancy > 80);
+              const lowMeds = matchedClinical.some((rec) => rec.medicineStock === "critical" || rec.medicineStock === "low");
+
+              // Compute recommendations
+              const allocations: string[] = [];
+              if (totalCholera > 10 || totalDiarrhea > 20) {
+                allocations.push("🚑 Deploy Mobile Medical Camp", "💊 Refill Antibiotics Stock");
+              }
+              if (hasContamination) {
+                allocations.push("💧 10k Chlorine Tablets", "🚛 3x Clean Water Tankers");
+              }
+              if (highBedOccupancy) {
+                allocations.push("🏥 Bed Capacity Expansion", "🧑‍⚕️ 2x Relief Doctors");
+              }
+              if (lowMeds) {
+                allocations.push("📦 Emergency ORS Kit Supply");
+              }
+
+              // Fallback default allocation
+              if (allocations.length === 0) {
+                allocations.push("✓ Standard Surveillance Maintenance");
+              }
+
+              return (
+                <div key={village.name} className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex flex-col justify-between space-y-4 hover:border-primary-500/20 transition-all duration-300">
+                  <div>
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="text-xs font-black text-slate-800">📍 {village.name}</span>
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded font-extrabold ${
+                        village.riskScore >= 80 ? "bg-danger-50 text-danger-500 border border-danger-100" :
+                        village.riskScore >= 50 ? "bg-warning-50 text-warning-600 border border-warning-100" :
+                        "bg-emerald-50 text-emerald-500 border border-emerald-100"
+                      }`}>
+                        Risk {village.riskScore}%
+                      </span>
+                    </div>
+
+                    <p className="text-[10px] text-slate-400 mb-3 leading-tight font-semibold">
+                      Caseload: {totalCholera} Cholera, {totalDiarrhea} Diarrhea. {highBedOccupancy ? "Critical Bed Capacity." : "Bed Capacity Normal."}
+                    </p>
+
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {allocations.map((alloc, idx) => (
+                        <span key={idx} className={`text-[9px] font-bold px-2 py-0.5 rounded border ${
+                          alloc.startsWith("✓") ? "bg-slate-50 text-slate-500 border-slate-200" : "bg-primary-50 text-primary-600 border-primary-100"
+                        }`}>
+                          {alloc}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      alert(`Emergency Resource Dispatch Confirmed for ${village.name}!\nAllocations: ${allocations.join(", ")}`);
+                    }}
+                    className="w-full btn-outline !py-2 text-[10px] font-bold uppercase tracking-wider cursor-pointer"
+                  >
+                    🚀 Dispatch Supplies
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
 
